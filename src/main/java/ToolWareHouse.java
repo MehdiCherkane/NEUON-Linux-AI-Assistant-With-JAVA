@@ -65,6 +65,15 @@ public class ToolWareHouse {
             "Use this when the user asks you to open, read, review, or analyze a specific file. " +
             "Provide the absolute file path. Do NOT use this to execute files — use run_shell for that.")
             .addParameter("file_path", "string", true));
+        
+        registerTool("send_email", new ToolDefinition("send_email", "Sends an email to a specified recipient. " +
+           "Use this tool when the user wants to send, write, or compose an email. " +
+           "Required parameters: 'to' (recipient email address), " +
+           "'subject' (email subject line), 'body' (email content).")
+           .addParameter("To", "string", true)
+           .addParameter("Subject", "string", true)
+           .addParameter("Body", "string", true)
+        );
 
     }
 

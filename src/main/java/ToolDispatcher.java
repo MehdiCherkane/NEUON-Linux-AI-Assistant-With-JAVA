@@ -13,6 +13,7 @@ public class ToolDispatcher {
         register("exit_Neuon", new ExitToolHandler());
         register("request_memories", new RequestMemoryToolHandler());
         register("read_file", new ReadFileToolHandler());
+        register("send_email", new EmailTool());
     }
 
     public ToolDispatcher register(String toolName, ToolHandler handler){

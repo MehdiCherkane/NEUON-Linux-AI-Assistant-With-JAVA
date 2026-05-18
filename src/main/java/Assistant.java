@@ -1,5 +1,5 @@
 // Added comment: I like this file! (this comment was added by Neuon itself hhh).
-import java.util.Scanner;
+
 
 public class Assistant {
     public static void main(String[] args) throws InterruptedException {

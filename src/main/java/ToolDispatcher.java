@@ -10,6 +10,7 @@ public class ToolDispatcher {
         register("run_shell", new ShellTool());
         register("write_code", new CodeToolHandler());
         register("update_long_term_memory", new LongMemoryToolHandler());
+        register("find_on_youtube", new YouTubeToolHandler());
         register("exit_Neuon", new ExitToolHandler());
         register("request_memories", new RequestMemoryToolHandler());
         register("read_file", new ReadFileToolHandler());

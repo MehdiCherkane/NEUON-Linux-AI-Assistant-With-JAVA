@@ -1,6 +1,6 @@
 package com.neuon.agent;
 import com.neuon.core.*;
-public class PromptV2 {
+public class PromptOrchester {
     
     private Memory memory = new Memory();
     private String systemPrompt = """

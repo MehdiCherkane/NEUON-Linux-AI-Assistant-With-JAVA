@@ -602,7 +602,6 @@ public class NeuonFXApp extends Application {
             protected Void call() {
                 try {
                     String response = orchesterAgent.getLLMResponse(prompt);
-                    memory.updateShortTermMemory(prompt, response);
                     fxInterface.sendOutput(response);
                     voiceHandler.speak(response);
                 } catch (Exception e) {

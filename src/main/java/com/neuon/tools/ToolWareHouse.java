@@ -21,13 +21,14 @@ public class ToolWareHouse {
             .addParameter("command", "string", true));
 
         // 2. write_code
-        registerTool("write_code", new ToolDefinition("write_code",
-            "Create a source code file and save it to the AI_CODE directory. " +
-            "Use this when the user asks to create, generate, or save a code file. " +
-            "Provide ONLY the filename with its extension (e.g. 'Main.java', 'script.py'), NOT a full path. " +
-            "Provide the complete file content. Do NOT use run_shell to write files.")
-            .addParameter("file_name", "string", true)
-            .addParameter("file_content", "string", true));
+        registerTool("invoke_code_agent", new ToolDefinition("invoke_code_agent",
+            "Delegate a coding task to the specialized Code Agent. " +
+            "Use this when the user asks to build, create, write, or fix a program or script. " +
+            "The Code Agent will autonomously write files, compile, run, and debug until the task is complete. " +
+            "Provide a clear and detailed prompt describing exactly what needs to be built, " +
+            "including language, functionality, and any specific requirements the user mentioned.")
+            .addParameter("prompt", "string", true)
+    );
             
         // 3. find_on_youtube
         registerTool("find_on_youtube", new ToolDefinition("find_on_youtube",
@@ -77,6 +78,7 @@ public class ToolWareHouse {
 
     }
 
+    // for the optimzer.
     public ToolRegistry getNeededTools(String userPrompt){
 
         ToolRegistry toolRegistry = new ToolRegistry();
@@ -89,6 +91,21 @@ public class ToolWareHouse {
         }
         return toolRegistry;
     }
+
+    // to expose the needed tools for difrent agents now (orchester, codeAgent).
+    public ToolRegistry getNeededTools(ArrayList<String> neededToolsList){
+
+        ToolRegistry toolRegistry = new ToolRegistry();
+        ArrayList<String> neededTools = neededToolsList;
+        for (String toolName : neededTools) {
+            ToolDefinition tool = allTools.get(toolName);
+            if (tool != null) {
+                toolRegistry.register(tool);
+            }
+        }
+        return toolRegistry;
+    }
+    
 
     private void registerTool(String toolName, ToolDefinition tool){
         allTools.put(toolName, tool);

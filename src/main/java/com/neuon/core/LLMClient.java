@@ -1,6 +1,5 @@
 package com.neuon.core;
 
-import com.neuon.agent.*;
 import java.net.http.*;
 import java.net.URI;
 import com.google.gson.JsonObject;
@@ -8,8 +7,7 @@ import com.google.gson.JsonObject;
 public class LLMClient {
 
     private HttpResponse<String> response;
-    private PromptV2 systemPrompt = new PromptV2();
-    private Memory memory = new Memory();
+
 
     private static final String API_KEY = System.getenv("GROQ_API_KEY");
 

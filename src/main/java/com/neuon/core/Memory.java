@@ -18,7 +18,7 @@ public class Memory {
     private String pathToLongMemeory = "src/main/resources/LongTermMemory.json";
 
     private int contextWindow = 8; // the number of last interactions to keep in short term memory
-    private static ArrayList<String[]> shortTermMemory = new ArrayList<>();
+    private ArrayList<String[]> shortTermMemory = new ArrayList<>();
 
     // add new pair of (userPrompt, LLMresponse) with respect to context window.
     public void updateShortTermMemory(String message, String response){

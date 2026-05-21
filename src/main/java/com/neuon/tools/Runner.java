@@ -4,6 +4,7 @@ import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import com.pty4j.PtyProcess;
+import com.pty4j.PtyProcessBuilder;
 import com.pty4j.WinSize;
 
 public class Runner {
@@ -11,9 +12,20 @@ public class Runner {
     private OutputStream activeStdin;
 
     // Non‑interactive (original)
+
     public ProcessResult execute(String command) {
+        return execute(command, null);
+    }
+    public ProcessResult execute(String command, String workingDir) {
         try {
             ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
+            if (workingDir != null){
+                File dir = new File(workingDir);
+                if (!dir.exists() || !dir.isDirectory()) {
+                    return new ProcessResult(-1, "", "Working directory does not exist: " + workingDir);
+                }
+                pb.directory(dir);
+            } 
             Process process = pb.start();
             String stdout = readStream(process.getInputStream());
             String stderr = readStream(process.getErrorStream());
@@ -34,7 +46,10 @@ public class Runner {
             try {
                 // Use PTY instead of ProcessBuilder
                 String[] cmdarray = { "bash", "-c", command };
-                Process process = PtyProcess.exec(cmdarray, System.getenv(), null);
+                Process process = new PtyProcessBuilder(cmdarray)
+                                        .setEnvironment(System.getenv())
+                                        .setDirectory(null)
+                                        .start();
                 
                 // Optional: set terminal size (80x24 is fine)
                 if (process instanceof PtyProcess) {

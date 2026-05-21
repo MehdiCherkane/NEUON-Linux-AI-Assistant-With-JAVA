@@ -1,41 +1,49 @@
 package com.neuon.agent;
 
-import com.neuon.core.*;
-import com.neuon.tools.*;
-import com.neuon.UI.*;
-import com.google.gson.*;
+import java.util.ArrayList;
 
-public class OrchesterAgent {
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.neuon.UI.FXInterface;
+import com.neuon.core.LLMClient;
+import com.neuon.core.Memory;
+import com.neuon.core.MessageBuilder;
+import com.neuon.core.RequestBuilder;
+import com.neuon.core.ResponseParser;
+import com.neuon.tools.ToolRunner;
+import com.neuon.tools.ToolWareHouse;
+
+public class CodeAgent {
 
     private LLMClient client = new LLMClient();
     private Memory memory = new Memory();
-    private PromptOrchester sysPrompt = new PromptOrchester();
+    private PromptCodeAgent sysPrompt = new PromptCodeAgent();
     private FXInterface userInterface = new FXInterface();
     private ToolWareHouse toolWareHouse = new ToolWareHouse();
     private ToolRunner toolRunner;
+    private final ArrayList<String> codeAgentTools = new ArrayList<>(); 
 
-    public OrchesterAgent() {
+    public CodeAgent() {
         toolRunner = new ToolRunner();
+        codeAgentTools.add("make_project_directory");
+        codeAgentTools.add("make_file");
+        codeAgentTools.add("run_shell");
+        codeAgentTools.add("edit_file"); 
     }
 
-    public String getLLMResponse(String userPrompt) {
+    public String startCoding(String promptFromNeuon) {
         try {
-            String finalResponse = runConversation(userPrompt);
-            memory.updateShortTermMemory(userPrompt, finalResponse);
-            return finalResponse;
+            return runAgent(promptFromNeuon);
         } catch (Exception e) {
             return "[ERROR] " + e.toString();
         }
     }
 
-    private String runConversation(String userPrompt) throws Exception {
+    private String runAgent(String userPrompt) throws Exception {
         
-        MessageBuilder messageBuilder = new MessageBuilder(); // fresh every call
+        MessageBuilder messageBuilder = new MessageBuilder(); 
 
-        // optimization in case of many tools, now we don't have much
-        /* JsonArray tools = toolWareHouse.getNeededTools(userPrompt).toJson(); */
-
-        JsonArray tools = toolWareHouse.getAllTools().toJson();
+        JsonArray tools = toolWareHouse.getNeededTools(codeAgentTools).toJson();  
 
         // I add system prompt
         messageBuilder.addSystem(sysPrompt.getPrompt());

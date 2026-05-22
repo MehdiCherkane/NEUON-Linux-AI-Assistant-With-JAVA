@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 public class ToolWareHouse {
-    private ToolOptimzerModel optimizer = new ToolOptimzerModel();
+    private ToolOptimzerModel optimizer;
 
     private HashMap<String, ToolDefinition> allTools = new HashMap<>();
     // I need to store all tools in in a HashMap.

@@ -12,11 +12,28 @@ public class OrchesterAgent {
     private PromptOrchester sysPrompt = new PromptOrchester();
     private FXInterface userInterface = new FXInterface();
     private ToolWareHouse toolWareHouse = new ToolWareHouse();
+
+    private ToolDispatcher toolDispatcher;
     private ToolRunner toolRunner;
+    private CodeAgent codeAgent;
 
     public OrchesterAgent() {
-        toolRunner = new ToolRunner();
+        
+        this.toolDispatcher = new ToolDispatcher();
+        this.toolRunner = new ToolRunner(toolDispatcher);
+        this.codeAgent = new CodeAgent(toolRunner);
+
+        toolDispatcher
+            .register("run_shell", new ShellTool())
+            .register("invoke_code_agent", new CodeToolHandler(codeAgent))
+            .register("update_long_term_memory", new LongMemoryToolHandler())
+            .register("find_on_youtube", new YouTubeToolHandler())
+            .register("exit_Neuon", new ExitToolHandler())
+            .register("request_memories", new RequestMemoryToolHandler())
+            .register("read_file", new ReadFileToolHandler())
+            .register("send_email", new EmailTool());
     }
+    
 
     public String getLLMResponse(String userPrompt) {
         try {

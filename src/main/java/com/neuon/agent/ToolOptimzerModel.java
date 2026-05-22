@@ -12,7 +12,9 @@ import com.google.gson.JsonParser;
 public class ToolOptimzerModel {
 
     private final String MODEL = "openai/gpt-oss-120b";
+    
     private ToolDispatcher toolDispatcher = new ToolDispatcher();
+
     private LLMClient optimizer = new LLMClient();
     private ArrayList<String> allToolsNames = toolDispatcher.getAllToolsNames();
     private OptimzerPrompt sysPrompt = new OptimzerPrompt();

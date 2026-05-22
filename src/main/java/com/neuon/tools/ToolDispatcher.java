@@ -4,22 +4,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 import com.google.gson.JsonObject;
-import com.neuon.agent.CodeAgent;
 
 public class ToolDispatcher {
     private HashMap<String, ToolHandler> handlers = new HashMap<>();
-    private CodeAgent codeAgent = new CodeAgent();
-
-    public ToolDispatcher(){
-        register("run_shell", new ShellTool());
-        register("invoke_code_agent", new CodeToolHandler(codeAgent));
-        register("update_long_term_memory", new LongMemoryToolHandler());
-        register("find_on_youtube", new YouTubeToolHandler());
-        register("exit_Neuon", new ExitToolHandler());
-        register("request_memories", new RequestMemoryToolHandler());
-        register("read_file", new ReadFileToolHandler());
-        register("send_email", new EmailTool());
-    }
 
     public ToolDispatcher register(String toolName, ToolHandler handler){
         handlers.put(toolName, handler);

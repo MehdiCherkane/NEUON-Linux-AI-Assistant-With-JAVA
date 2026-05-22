@@ -23,8 +23,8 @@ public class CodeAgent {
     private ToolRunner toolRunner;
     private final ArrayList<String> codeAgentTools = new ArrayList<>(); 
 
-    public CodeAgent() {
-        toolRunner = new ToolRunner();
+    public CodeAgent(ToolRunner toolRunner) {
+        this.toolRunner = toolRunner;
         codeAgentTools.add("make_project_directory");
         codeAgentTools.add("make_file");
         codeAgentTools.add("run_shell");

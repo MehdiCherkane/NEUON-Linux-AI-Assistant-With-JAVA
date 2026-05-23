@@ -66,7 +66,7 @@ public class ToolWareHouse {
             "Use this when the user asks you to open, read, review, or analyze a specific file. " +
             "Provide the absolute file path. Do NOT use this to execute files — use run_shell for that.")
             .addParameter("file_path", "string", true));
-        
+        // 8 - send emails
         registerTool("send_email", new ToolDefinition("send_email", "Sends an email to a specified recipient. " +
            "Use this tool when the user wants to send, write, or compose an email. " +
            "Required parameters: 'to' (recipient email address), " +
@@ -74,6 +74,25 @@ public class ToolWareHouse {
            .addParameter("To", "string", true)
            .addParameter("Subject", "string", true)
            .addParameter("Body", "string", true)
+        );
+        // 9 - make directories (For Code Agent)
+        registerTool("make_project_directory", new ToolDefinition("make_project_directory",
+            "Create a new directory in the workspace to house the project files. " +
+            "Always call this before creating any files for a new project. " +
+            "Provide a clean, lowercase, underscore-separated name that reflects the project " +
+            "(e.g. 'snake_game', 'web_scraper'). The directory will be created inside workspace/. " +
+            "Do NOT provide a full path, just the folder name.")
+            .addParameter("dir_name", "string", true)
+        );
+        // 10 - make files.
+        registerTool("make_file", new ToolDefinition("make_file",
+            "Create a new source file inside the project directory and write its full content. " +
+            "Use this to write any code file (e.g. 'Main.java', 'script.py', 'index.js'). " +
+            "Provide only the filename with its extension, not a full path. " +
+            "Provide the complete file content — this is the only time you write the full file. " +
+            "For future modifications use edit_file instead.")
+            .addParameter("file_name", "string", true)
+            .addParameter("file_content", "string", true)
         );
 
     }

@@ -28,7 +28,6 @@ public class CodeAgent {
         codeAgentTools.add("make_project_directory");
         codeAgentTools.add("make_file");
         codeAgentTools.add("run_shell");
-        codeAgentTools.add("edit_file"); 
     }
 
     public String startCoding(String promptFromNeuon) {
@@ -61,7 +60,7 @@ public class CodeAgent {
         int steps = 0;
 
         while (steps++ < maxSteps) {
-            userInterface.sendOutput("loop run %d times".formatted(steps));
+            userInterface.sendOutput("-> Code Agent loop ran %d times".formatted(steps));
 
             JsonObject body = RequestBuilder.build(messageBuilder.build(), tools, "openai/gpt-oss-120b");
             String raw = client.ask(body);

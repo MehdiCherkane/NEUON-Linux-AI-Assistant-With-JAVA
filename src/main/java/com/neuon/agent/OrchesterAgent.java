@@ -3,6 +3,10 @@ package com.neuon.agent;
 import com.neuon.core.*;
 import com.neuon.tools.*;
 import com.neuon.UI.*;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import com.google.gson.*;
 
 public class OrchesterAgent {
@@ -12,6 +16,7 @@ public class OrchesterAgent {
     private PromptOrchester sysPrompt = new PromptOrchester();
     private FXInterface userInterface = new FXInterface();
     private ToolWareHouse toolWareHouse = new ToolWareHouse();
+    private ArrayList<String> OrchestorTools = new ArrayList<>();
 
     private ToolDispatcher toolDispatcher;
     private ToolRunner toolRunner;
@@ -31,7 +36,18 @@ public class OrchesterAgent {
             .register("exit_Neuon", new ExitToolHandler())
             .register("request_memories", new RequestMemoryToolHandler())
             .register("read_file", new ReadFileToolHandler())
-            .register("send_email", new EmailTool());
+            .register("send_email", new EmailTool())
+            .register("make_project_directory", new MakeDirectoryTool())
+            .register("make_file", new MakeFileTool());
+        
+        this.OrchestorTools.add("run_shell");
+        this.OrchestorTools.add("invoke_code_agent");
+        this.OrchestorTools.add("update_long_term_memory");
+        this.OrchestorTools.add("request_memories");
+        this.OrchestorTools.add("find_on_youtube");
+        this.OrchestorTools.add("read_file");
+        this.OrchestorTools.add("exit_Neuon");
+
     }
     
 
@@ -52,7 +68,7 @@ public class OrchesterAgent {
         // optimization in case of many tools, now we don't have much
         /* JsonArray tools = toolWareHouse.getNeededTools(userPrompt).toJson(); */
 
-        JsonArray tools = toolWareHouse.getAllTools().toJson();
+        JsonArray tools = toolWareHouse.getNeededTools(OrchestorTools).toJson();
 
         // I add system prompt
         messageBuilder.addSystem(sysPrompt.getPrompt());

@@ -1,10 +1,10 @@
 package com.neuon.agent;
 
-import com.neuon.tools.*;
 import java.util.ArrayList;
+import java.util.Collection;
 
 public class OptimzerPrompt {
-    private ToolDispatcher tools = new ToolDispatcher();
+    private ArrayList<String> tools;
     private String system = """
 
         You are a tool router. Your job is to analyze a user's message and return the minimal set of tools that a larger AI assistant might need to fulfill the request.
@@ -26,11 +26,19 @@ public class OptimzerPrompt {
         { %s }
 
             """;
+
+    public OptimzerPrompt(Collection<String> tools) {
+        this.tools = new ArrayList<>(tools);
+    }
+
+    public OptimzerPrompt() {
+        this.tools = new ArrayList<>();
+    }
+
     public String getSystemPrompt(){
         StringBuilder s = new StringBuilder();
-        ArrayList<String> allTools = tools.getAllToolsNames();
-        for (String tollName : allTools) {
-            s.append(tollName + ".\n");
+        for (String toolName : tools) {
+            s.append(toolName + ".\n");
         }
         return this.system.formatted(s);
     }

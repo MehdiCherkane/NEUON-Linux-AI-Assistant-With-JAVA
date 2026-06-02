@@ -4,6 +4,7 @@ import com.neuon.tools.*;
 import com.neuon.core.*;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -13,13 +14,19 @@ public class ToolOptimzerModel {
 
     private final String MODEL = "openai/gpt-oss-120b";
     
-    private ToolDispatcher toolDispatcher = new ToolDispatcher();
-
     private LLMClient optimizer = new LLMClient();
-    private ArrayList<String> allToolsNames = toolDispatcher.getAllToolsNames();
-    private OptimzerPrompt sysPrompt = new OptimzerPrompt();
+    private ArrayList<String> allToolsNames;
+    private OptimzerPrompt sysPrompt;
     private Memory memory = new Memory();
 
+    public ToolOptimzerModel(Collection<String> allToolsNames) {
+        this.allToolsNames = new ArrayList<>(allToolsNames);
+        this.sysPrompt = new OptimzerPrompt(this.allToolsNames);
+    }
+
+    public ToolOptimzerModel() {
+        this(new ToolWareHouse().getAllToolsNames());
+    }
 
     // I'm gonna use a small LLM to decide the needed tools.
     public ArrayList<String> getNeededTools(String userPrompt) {

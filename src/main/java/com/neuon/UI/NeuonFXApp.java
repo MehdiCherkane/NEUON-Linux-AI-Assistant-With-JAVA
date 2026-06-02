@@ -111,8 +111,8 @@ public class NeuonFXApp extends Application {
         Pane bg = new Pane();
         bg.setStyle(
             "-fx-background-color: #020b10," +
-            "linear-gradient(rgba(0,242,255,0.05) 1px, transparent 1px)," +
-            "linear-gradient(90deg, rgba(0,242,255,0.05) 1px, transparent 1px);" +
+            "linear-gradient(from 0px 0px to 0px 40px, rgba(0,242,255,0.05) 1px, transparent 1px)," +
+            "linear-gradient(from 0px 0px to 40px 0px, rgba(0,242,255,0.05) 1px, transparent 1px);" +
             "-fx-background-size: 100% 100%, 40px 40px, 40px 40px;"
         );
         bg.setMouseTransparent(true);

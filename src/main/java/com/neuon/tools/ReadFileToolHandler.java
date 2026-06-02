@@ -15,8 +15,7 @@ public class ReadFileToolHandler implements ToolHandler{
             return fileContent;
         }
         catch(IOException ioe){
-            ioe.printStackTrace();
-            return "An error occured while finding the file or while reading it!!";
+            return "An error occurred while reading the file: " + ioe.getMessage();
         }
 
     }

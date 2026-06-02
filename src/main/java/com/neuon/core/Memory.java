@@ -1,10 +1,12 @@
 package com.neuon.core;
-import com.neuon.UI.*;
 
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -14,36 +16,45 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 public class Memory {
-    private Interface userInterface = new FXInterface();
-    private String pathToLongMemeory = "src/main/resources/LongTermMemory.json";
+    private String pathToLongTermMemory;
+    private int contextWindow = 8;
+    private final List<String[]> shortTermMemory = Collections.synchronizedList(new ArrayList<>());
 
-    private int contextWindow = 8; // the number of last interactions to keep in short term memory
-    private ArrayList<String[]> shortTermMemory = new ArrayList<>();
+    public Memory() {
+        String home = System.getProperty("user.home", ".");
+        this.pathToLongTermMemory = home + "/.neuon/LongTermMemory.json";
+    }
 
-    // add new pair of (userPrompt, LLMresponse) with respect to context window.
+    public Memory(String customPath) {
+        this.pathToLongTermMemory = customPath;
+    }
+
     public void updateShortTermMemory(String message, String response){
-        if (shortTermMemory.size() >= contextWindow) {
-            shortTermMemory.remove(0);
+        synchronized (shortTermMemory) {
+            if (shortTermMemory.size() >= contextWindow) {
+                shortTermMemory.remove(0);
+            }
+            shortTermMemory.add(new String[]{message, response});
         }
-        shortTermMemory.add(new String[]{message, response});
     }
 
-    // get short memory (it will be sent to the LLM)
-    public ArrayList<String[]> loadShortMemory(){
-        return shortTermMemory;
+    public List<String[]> loadShortMemory(){
+        synchronized (shortTermMemory) {
+            return new ArrayList<>(shortTermMemory);
+        }
     }
 
-    // clearing our memory intetionally (even if don't close program)
     public void clearShortMemory(){
-        shortTermMemory.clear();
+        synchronized (shortTermMemory) {
+            shortTermMemory.clear();
+        }
     }
 
     public String getMemoriesCategories(){
-
-        try (FileReader reader = new FileReader(pathToLongMemeory)) {
-
+        try (FileReader reader = new FileReader(pathToLongTermMemory)) {
             JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
             JsonObject categories = root.getAsJsonObject("_categories_index");
+            if (categories == null) return "";
             StringBuilder sb = new StringBuilder();
             for (String key : categories.keySet()) {
                 String desc = "";
@@ -60,51 +71,37 @@ public class Memory {
             return sb.toString();
         } 
         catch (Exception e) {
-            e.printStackTrace();
             return "";
         }
     }
 
     public String updateLongTermMemory(String memoriesCategory, String newMemory){
         JsonObject root;
-
-        // 1. READ PHASE (Scoped separately so the file is released immediately)
-        try (FileReader reader = new FileReader(pathToLongMemeory)) {
+        ensureFileExists();
+        try (FileReader reader = new FileReader(pathToLongTermMemory)) {
             root = JsonParser.parseReader(reader).getAsJsonObject();
         } catch (Exception e) {
-            e.printStackTrace();
             return "Error reading memory file.";
         }
-
-        // 2. MODIFY PHASE
         JsonArray array = root.getAsJsonArray(memoriesCategory);
-        
-        // Safety check: if category doesn't exist, create it!
         if (array == null) {
             array = new JsonArray();
             root.add(memoriesCategory, array);
         }
-        
         array.add("- %s".formatted(newMemory));
-
-        // 3. WRITE PHASE
-        try (FileWriter writer = new FileWriter(pathToLongMemeory)) {
+        try (FileWriter writer = new FileWriter(pathToLongTermMemory)) {
             Gson gson = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
             gson.toJson(root, writer);
         } catch (IOException e) {
-            e.printStackTrace();
             return "Error writing to memory file.";
         }
-
-        userInterface.sendOutput("-> Long term memory updated.");
         return "Long memory updated successfully.";
     }
 
     public String requestMemories(String categoryName){
-
         StringBuilder requestedMemories = new StringBuilder();
-
-        try (FileReader reader = new FileReader(pathToLongMemeory)) {
+        ensureFileExists();
+        try (FileReader reader = new FileReader(pathToLongTermMemory)) {
             JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
             if (!root.has(categoryName)) {
                 return "Category '" + categoryName + "' not found in memory.";
@@ -121,12 +118,24 @@ public class Memory {
                 requestedMemories.append(element);
                 requestedMemories.append("\n");
             }
-            userInterface.sendOutput("-> Memory requested!");
             return requestedMemories.toString();
         } 
         catch (Exception e) {
-            e.printStackTrace();
             return "Error retrieving memory: " + e.getMessage();
+        }
+    }
+
+    private void ensureFileExists() {
+        try {
+            File f = new File(pathToLongTermMemory);
+            if (!f.exists()) {
+                f.getParentFile().mkdirs();
+                try (FileWriter w = new FileWriter(f)) {
+                    w.write("{\"_categories_index\": {}}");
+                }
+            }
+        } catch (IOException e) {
+            // ignore
         }
     }
 }

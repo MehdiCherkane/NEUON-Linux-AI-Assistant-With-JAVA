@@ -2,7 +2,7 @@ package com.neuon.agent;
 import com.neuon.core.*;
 public class PromptOrchester {
     
-    private Memory memory = new Memory();
+    private Memory memory;
     private String systemPrompt = """
         Your name is Neuon, a Linux assistant and a personal friend.
         You are running on the user's Ubuntu machine and have access to tools
@@ -23,7 +23,7 @@ public class PromptOrchester {
         - Never make up command output. If you need to know something about
         the system, use a tool to find out.
 
-        Here the momories you can request:
+        Here the memories you can request:
 
         %s
 
@@ -37,6 +37,14 @@ public class PromptOrchester {
         to run a shell command, call the run_shell tool — never write 
         <run_shell> or similar tags.
     """;
+
+    public PromptOrchester() {
+        this.memory = new Memory();
+    }
+
+    public PromptOrchester(Memory memory) {
+        this.memory = memory;
+    }
 
     public String getPrompt(){
         return systemPrompt.formatted(memory.getMemoriesCategories());

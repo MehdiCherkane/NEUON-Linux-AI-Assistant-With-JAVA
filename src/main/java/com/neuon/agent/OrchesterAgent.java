@@ -5,15 +5,17 @@ import com.neuon.tools.*;
 import com.neuon.UI.*;
 
 import java.util.ArrayList;
-import java.util.List;
+
 
 import com.google.gson.*;
 
 public class OrchesterAgent {
 
+    private static final String MODEL = System.getenv("LLM_MODEL") != null ? System.getenv("LLM_MODEL") : "openai/gpt-oss-120b";
+
     private LLMClient client = new LLMClient();
     private Memory memory = new Memory();
-    private PromptOrchester sysPrompt = new PromptOrchester();
+    private PromptOrchester sysPrompt;
     private FXInterface userInterface = new FXInterface();
     private ToolWareHouse toolWareHouse = new ToolWareHouse();
     private ArrayList<String> OrchestorTools = new ArrayList<>();
@@ -23,6 +25,7 @@ public class OrchesterAgent {
     private CodeAgent codeAgent;
 
     public OrchesterAgent() {
+        this.sysPrompt = new PromptOrchester(memory);
         
         this.toolDispatcher = new ToolDispatcher();
         this.toolRunner = new ToolRunner(toolDispatcher);
@@ -88,9 +91,13 @@ public class OrchesterAgent {
         while (steps++ < maxSteps) {
             userInterface.sendOutput("loop run %d times".formatted(steps));
 
-            JsonObject body = RequestBuilder.build(messageBuilder.build(), tools, "openai/gpt-oss-120b");
+            JsonObject body = RequestBuilder.build(messageBuilder.build(), tools, MODEL);
             String raw = client.ask(body);
             ResponseParser parser = new ResponseParser().parse(raw);
+
+            if (parser.isError()) {
+                return parser.getText();
+            }
 
             messageBuilder.addRaw(parser.getRawMessage());
 
@@ -101,6 +108,9 @@ public class OrchesterAgent {
             if (parser.isToolCall()) {
                 
                 JsonArray toolCalls = parser.getToolCalls();
+                if (toolCalls == null || toolCalls.size() == 0) {
+                    return "[ERROR] Tool call finish reason without tool calls";
+                }
                 for (int i = 0; i < toolCalls.size(); i++) {
                     JsonObject toolCall = toolCalls.get(i).getAsJsonObject();
                     String name = ResponseParser.getToolName(toolCall);

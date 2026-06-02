@@ -17,7 +17,7 @@ public class ToolWareHouse {
             "Execute a terminal shell command on the user's Linux system. " +
             "Use this for system tasks: installing packages, running scripts, navigating the filesystem, " +
             "checking processes, or any OS-level operation. " +
-            "Do NOT use this to write or create files — use write_code for that.")
+            "Do NOT use this to write or create files — use make_file for that.")
             .addParameter("command", "string", true));
 
         // 2. write_code
@@ -88,12 +88,13 @@ public class ToolWareHouse {
         registerTool("make_file", new ToolDefinition("make_file",
             "Create a new source file inside the project directory and write its full content. " +
             "Use this to write any code file (e.g. 'Main.java', 'script.py', 'index.js'). " +
-            "Provide only the filename with its extension, not a full path. " +
-            "Provide the complete file content — this is the only time you write the full file. " +
-            "For future modifications use edit_file instead.")
-            .addParameter("file_name", "string", true)
+            "Provide a path relative to the workspace, including the project directory " +
+            "(for example 'snake_game/main.py'). The tool rejects paths outside the workspace.")
+            .addParameter("file_path", "string", true)
             .addParameter("file_content", "string", true)
         );
+
+        optimizer = new ToolOptimzerModel(allTools.keySet());
 
     }
 
@@ -102,6 +103,9 @@ public class ToolWareHouse {
 
         ToolRegistry toolRegistry = new ToolRegistry();
         ArrayList<String> neededTools = optimizer.getNeededTools(userPrompt);
+        if (neededTools == null) {
+            return getAllTools();
+        }
         for (String toolName : neededTools) {
             ToolDefinition tool = allTools.get(toolName);
             if (tool != null) {
@@ -136,6 +140,10 @@ public class ToolWareHouse {
             toolRegistry.register(tool);
         }
         return toolRegistry;
+    }
+
+    public ArrayList<String> getAllToolsNames(){
+        return new ArrayList<>(allTools.keySet());
     }
     
 }

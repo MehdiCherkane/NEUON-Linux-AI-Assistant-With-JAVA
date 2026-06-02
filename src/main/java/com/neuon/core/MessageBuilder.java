@@ -34,6 +34,9 @@ public class MessageBuilder {
 
     // For injecting the assistant's tool_call message back into history
     public MessageBuilder addRaw(JsonObject rawMessage) {
+        if (rawMessage == null || !rawMessage.has("role") || rawMessage.get("role").isJsonNull()) {
+            return this;
+        }
         messages.add(rawMessage);
         return this;
     }

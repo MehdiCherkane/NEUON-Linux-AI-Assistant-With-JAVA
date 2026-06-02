@@ -10,9 +10,14 @@ public class ShellTool implements ToolHandler {
         private Interface userInterface = new FXInterface();
 
         @Override
-        public String execute(JsonObject parametrs) {
-
-            String command = parametrs.get("command").getAsString();
+        public String execute(JsonObject parameters) {
+            if (parameters == null || !parameters.has("command") || parameters.get("command").isJsonNull()) {
+                return "[ERROR] Missing 'command' parameter";
+            }
+            String command = parameters.get("command").getAsString().trim();
+            if (command.isEmpty()) {
+                return "[ERROR] Empty command";
+            }
 
             if (safetyCheck.isInteractive(command)) return interactive(command);
             else return nonInteractive(command);
@@ -45,7 +50,7 @@ public class ShellTool implements ToolHandler {
         private String nonInteractive(String command){
             if (safetyCheck.isSafe(command)) {
                 userInterface.sendOutput("Command to execute: " + command);
-                ProcessResult result = runner.execute(command);
+                ProcessResult result = runner.execute(command, WorkspacePaths.root().toString());
                 if (!result.getStdout().isBlank()) return result.getStdout();
                 if (!result.getStderr().isBlank()) return result.getStderr();
                 return "Exit code: " + result.getExitCode();
@@ -55,7 +60,7 @@ public class ShellTool implements ToolHandler {
                 userInterface.sendOutput("Command to execute: " + command);
                 boolean userConfirmation = userInterface.validateCommand(command);
                 if (userConfirmation) {
-                    ProcessResult result = runner.execute(command);
+                    ProcessResult result = runner.execute(command, WorkspacePaths.root().toString());
                     if (!result.getStdout().isBlank()) return result.getStdout();
                     if (!result.getStderr().isBlank()) return result.getStderr();
                     return "Exit code: " + result.getExitCode();

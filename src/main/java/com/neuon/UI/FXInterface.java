@@ -46,6 +46,10 @@ public class FXInterface extends Interface {
     }
 
     private void append(String output) {
+        if (outputArea == null) {
+            System.out.println(output);
+            return;
+        }
         outputArea.appendText("\n" + output);
         outputArea.positionCaret(outputArea.getText().length());
     }

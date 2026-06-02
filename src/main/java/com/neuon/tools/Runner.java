@@ -21,7 +21,10 @@ public class Runner {
             ProcessBuilder pb = new ProcessBuilder("bash", "-c", command);
             if (workingDir != null){
                 File dir = new File(workingDir);
-                if (!dir.exists() || !dir.isDirectory()) {
+                if (!dir.exists() && !dir.mkdirs()) {
+                    return new ProcessResult(-1, "", "Could not create working directory: " + workingDir);
+                }
+                if (!dir.isDirectory()) {
                     return new ProcessResult(-1, "", "Working directory does not exist: " + workingDir);
                 }
                 pb.directory(dir);
@@ -70,7 +73,7 @@ public class Runner {
                             handler.onOutput(line);
                         }
                     } catch (IOException ignored) {
-                        handler.onOutput("Error occured while reading process I/O");
+                        // Stream closed when process ends
                     }
                 });
                 outThread.setDaemon(true);
@@ -83,7 +86,7 @@ public class Runner {
                             handler.onError(line);
                         }
                     } catch (IOException ignored) {
-                        handler.onError("Error occured while reading process I/O");
+                        // Stream closed when process ends
                     }
                 });
                 errThread.setDaemon(true);

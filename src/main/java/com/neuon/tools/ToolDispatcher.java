@@ -14,11 +14,11 @@ public class ToolDispatcher {
     }
 
     public String dispatch(String toolName, JsonObject parameters){
-        ToolHandler hanler = handlers.get(toolName);
-        if (hanler != null) {
-            return hanler.execute(parameters);
+        ToolHandler handler = handlers.get(toolName);
+        if (handler != null) {
+            return handler.execute(parameters);
         }
-        return "Error: this tool '" + toolName + "' is unkown"; 
+        return "Error: this tool '" + toolName + "' is unknown"; 
     }
 
     public ArrayList<String> getAllToolsNames(){

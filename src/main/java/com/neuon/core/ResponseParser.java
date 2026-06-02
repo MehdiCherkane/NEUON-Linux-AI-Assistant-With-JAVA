@@ -16,6 +16,14 @@ public class ResponseParser {
         System.err.println("RAW: " + responseBody);
         try {
             JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
+
+            if (root.has("error") && root.get("error").isJsonObject()) {
+                JsonObject error = root.getAsJsonObject("error");
+                this.stopReason = "error";
+                this.textContent = "[ERROR] " + getErrorMessage(error);
+                return this;
+            }
+
             JsonArray choicesArray = root.getAsJsonArray("choices");
             if (choicesArray == null || choicesArray.size() == 0) {
                 this.stopReason = "error";
@@ -35,6 +43,7 @@ public class ResponseParser {
 
             this.rawMessage = choice.getAsJsonObject("message");
             if (this.rawMessage == null) {
+                this.stopReason = "error";
                 this.textContent = "[ERROR] No message in choice";
                 return this;
             }
@@ -62,8 +71,24 @@ public class ResponseParser {
         return this;
     }
 
+    private String getErrorMessage(JsonObject error) {
+        JsonElement message = error.get("message");
+        if (message == null || message.isJsonNull()) {
+            return error.toString();
+        }
+        try {
+            return message.getAsString();
+        } catch (UnsupportedOperationException e) {
+            return message.toString();
+        }
+    }
+
     public boolean isToolCall() {
         return "tool_calls".equals(stopReason);
+    }
+
+    public boolean isError() {
+        return "error".equals(stopReason);
     }
 
     public boolean isDone() {

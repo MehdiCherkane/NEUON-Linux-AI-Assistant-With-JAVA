@@ -15,6 +15,8 @@ import com.neuon.tools.ToolWareHouse;
 
 public class CodeAgent {
 
+    private static final String MODEL = System.getenv("LLM_MODEL") != null ? System.getenv("LLM_MODEL") : "openai/gpt-oss-120b";
+
     private LLMClient client = new LLMClient();
     private Memory memory = new Memory();
     private PromptCodeAgent sysPrompt = new PromptCodeAgent();
@@ -32,7 +34,9 @@ public class CodeAgent {
 
     public String startCoding(String promptFromNeuon) {
         try {
-            return runAgent(promptFromNeuon);
+            String finalResult = runAgent(promptFromNeuon);
+            memory.updateShortTermMemory(promptFromNeuon, finalResult);
+            return finalResult;
         } catch (Exception e) {
             return "[ERROR] " + e.toString();
         }
@@ -62,9 +66,13 @@ public class CodeAgent {
         while (steps++ < maxSteps) {
             userInterface.sendOutput("-> Code Agent loop ran %d times".formatted(steps));
 
-            JsonObject body = RequestBuilder.build(messageBuilder.build(), tools, "openai/gpt-oss-120b");
+            JsonObject body = RequestBuilder.build(messageBuilder.build(), tools, MODEL);
             String raw = client.ask(body);
             ResponseParser parser = new ResponseParser().parse(raw);
+
+            if (parser.isError()) {
+                return parser.getText();
+            }
 
             messageBuilder.addRaw(parser.getRawMessage());
 
@@ -75,6 +83,9 @@ public class CodeAgent {
             if (parser.isToolCall()) {
                 
                 JsonArray toolCalls = parser.getToolCalls();
+                if (toolCalls == null || toolCalls.size() == 0) {
+                    return "[ERROR] Tool call finish reason without tool calls";
+                }
                 for (int i = 0; i < toolCalls.size(); i++) {
                     JsonObject toolCall = toolCalls.get(i).getAsJsonObject();
                     String name = ResponseParser.getToolName(toolCall);

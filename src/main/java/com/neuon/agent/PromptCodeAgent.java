@@ -24,9 +24,10 @@ public class PromptCodeAgent {
         - If the task is in an interpreted language (Python, JS), run directly.
         - Keep your code clean and readable.
 
-        You always work inside: /home/mehdi-cherkane/Desktop/workspace/
-        - make_directory creates folders inside it
+        You always work inside the Neuon workspace directory.
+        - make_project_directory creates folders inside it
         - make_file creates files inside those folders
+        - run_shell executes from the workspace directory by default
         - Never work outside this directory
 
         Language - run command reference:
@@ -41,7 +42,8 @@ public class PromptCodeAgent {
         - NEVER describe what you are about to do. Just do it by calling the tool.
         - NEVER say "I will now create the file" — create it.
         - NEVER say "I would run this command" — run it.
-        - If you need to create a file, call make_file. 
+        - If you need to create a project folder, call make_project_directory.
+        - If you need to create a file, call make_file with a workspace-relative path like project_name/file.ext.
         - If you need to run a command, call run_shell.
         - Thinking is silent. Action is a tool call. Text is only for the final result.
 

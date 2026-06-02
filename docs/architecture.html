@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Neuon v0.2 — Architecture</title>
+<style>
+  :root {
+    --bg: #020b10;
+    --surface: rgba(0,15,25,0.85);
+    --cyan: #00f2ff;
+    --green: #00ff88;
+    --amber: #ffaa00;
+    --red: #ff5555;
+    --text: #c8e6e8;
+    --dim: rgba(0,242,255,0.35);
+    --border: rgba(0,242,255,0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Consolas', 'Courier New', monospace;
+    color: var(--cyan);
+    letter-spacing: 0.5px;
+  }
+
+  h1 {
+    font-size: 2rem;
+    border-bottom: 1px solid var(--cyan);
+    padding-bottom: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  h2 {
+    font-size: 1.3rem;
+    margin: 2rem 0 1rem;
+    padding-left: 0.5rem;
+    border-left: 3px solid var(--cyan);
+  }
+
+  h3 {
+    font-size: 1rem;
+    margin: 1.2rem 0 0.5rem;
+    color: var(--green);
+  }
+
+  p, li { font-size: 0.95rem; }
+
+  a { color: var(--cyan); }
+
+  .tag {
+    display: inline-block;
+    font-family: monospace;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-right: 4px;
+  }
+  .tag-new   { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid var(--green); }
+  .tag-mod   { background: rgba(255,170,0,0.15); color: var(--amber); border: 1px solid var(--amber); }
+  .tag-keep  { background: rgba(0,242,255,0.1); color: var(--cyan); border: 1px solid var(--dim); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    margin-bottom: 1rem;
+  }
+  .card h4 { margin-bottom: 0.4rem; font-size: 0.95rem; }
+
+  /* === SVG Diagram === */
+  .diagram-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+  svg text { font-family: 'Consolas', monospace; }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+  }
+
+  @media (max-width: 750px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    body { padding: 1rem; }
+  }
+
+  ul { padding-left: 1.2rem; }
+  li { margin-bottom: 0.3rem; }
+
+  .flow-list {
+    list-style: none;
+    counter-reset: step;
+    padding: 0;
+  }
+  .flow-list li {
+    counter-increment: step;
+    padding: 0.6rem 0.8rem 0.6rem 2.8rem;
+    position: relative;
+    border-left: 2px solid var(--border);
+    margin-left: 0.8rem;
+  }
+  .flow-list li::before {
+    content: counter(step);
+    position: absolute;
+    left: -0.8rem;
+    top: 0.5rem;
+    width: 1.6rem;
+    height: 1.6rem;
+    border-radius: 50%;
+    background: var(--cyan);
+    color: #000;
+    font-weight: bold;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .flow-list li:last-child { border-left-color: transparent; }
+
+  .file-path {
+    font-family: monospace;
+    font-size: 0.8rem;
+    color: var(--dim);
+  }
+</style>
+</head>
+<body>
+
+<h1>⚡ Neuon v0.2 — Architecture</h1>
+
+<p>
+  Neuon is a desktop AI automation assistant built in Java 21 with JavaFX.
+  It uses the Groq API for LLM inference, manages conversation memory,
+  and exposes tools for shell execution, file management, and code generation.
+  This document describes the architecture <em>after</em> the v0.2 refactor.
+</p>
+
+<!-- ============= LAYER DIAGRAM ============= -->
+<h2>1. Layer Overview</h2>
+<div class="diagram-box">
+<svg viewBox="0 0 920 540" width="100%" height="auto">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00f2ff"/>
+    </marker>
+    <marker id="arrowg" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00ff88"/>
+    </marker>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Layer backgrounds -->
+  <rect x="10" y="0" width="900" height="110" rx="6" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.12)"/>
+  <rect x="10" y="115" width="900" height="200" rx="6" fill="rgba(0,255,136,0.03)" stroke="rgba(0,255,136,0.10)"/>
+  <rect x="10" y="320" width="900" height="210" rx="6" fill="rgba(255,170,0,0.03)" stroke="rgba(255,170,0,0.10)"/>
+
+  <!-- Layer labels -->
+  <text x="20" y="24" fill="#00f2ff" font-size="12" font-weight="bold">UI LAYER</text>
+  <text x="20" y="134" fill="#00ff88" font-size="12" font-weight="bold">AGENT / CORE LAYER</text>
+  <text x="20" y="338" fill="#ffaa00" font-size="12" font-weight="bold">TOOL LAYER</text>
+
+  <!-- === UI LAYER blocks === -->
+  <rect x="40" y="32" width="200" height="60" rx="4" fill="rgba(0,242,255,0.12)" stroke="#00f2ff" stroke-width="1.2"/>
+  <text x="140" y="57" text-anchor="middle" fill="#00f2ff" font-size="12" font-weight="bold">NeuonFXApp</text>
+  <text x="140" y="73" text-anchor="middle" fill="rgba(0,242,255,0.6)" font-size="9">JavaFX Stage — main UI</text>
+
+  <rect x="280" y="32" width="200" height="60" rx="4" fill="rgba(0,242,255,0.12)" stroke="#00f2ff" stroke-width="1.2"/>
+  <text x="380" y="57" text-anchor="middle" fill="#00f2ff" font-size="12" font-weight="bold">FXInterface</text>
+  <text x="380" y="73" text-anchor="middle" fill="rgba(0,242,255,0.6)" font-size="9">UI bridge → sendOutput/validate</text>
+
+  <rect x="520" y="32" width="200" height="60" rx="4" fill="rgba(0,242,255,0.12)" stroke="#00f2ff" stroke-width="1.2"/>
+  <text x="620" y="57" text-anchor="middle" fill="#00f2ff" font-size="12" font-weight="bold">VoiceHandler</text>
+  <text x="620" y="73" text-anchor="middle" fill="rgba(0,242,255,0.6)" font-size="9">STT / TTS (AssemblyAI)</text>
+
+  <rect x="760" y="32" width="120" height="60" rx="4" fill="rgba(0,242,255,0.12)" stroke="#00f2ff" stroke-width="1.2"/>
+  <text x="820" y="57" text-anchor="middle" fill="#00f2ff" font-size="11" font-weight="bold">HardwareMon</text>
+  <text x="820" y="73" text-anchor="middle" fill="rgba(0,242,255,0.6)" font-size="9">/proc reader</text>
+
+  <!-- === AGENT LAYER blocks === -->
+  <!-- OrchesterAgent box -->
+  <rect x="40" y="145" width="280" height="80" rx="4" fill="rgba(0,255,136,0.08)" stroke="#00ff88" stroke-width="1.2"/>
+  <text x="180" y="167" text-anchor="middle" fill="#00ff88" font-size="12" font-weight="bold">OrchesterAgent</text>
+  <text x="180" y="183" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">system prompt · memory policy · tool list</text>
+  <text x="180" y="198" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">delegates coding → CodeAgent</text>
+  <text x="180" y="213" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">orchestrator + 9 tools</text>
+
+  <!-- CodeAgent box -->
+  <rect x="360" y="145" width="260" height="80" rx="4" fill="rgba(0,255,136,0.08)" stroke="#00ff88" stroke-width="1.2"/>
+  <text x="490" y="167" text-anchor="middle" fill="#00ff88" font-size="12" font-weight="bold">CodeAgent</text>
+  <text x="490" y="183" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">system prompt · workspace policy</text>
+  <text x="490" y="198" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">autonomous coding sub-agent</text>
+  <text x="490" y="213" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">6 tools: file, shell, dir</text>
+
+  <!-- AgentLoop box (shared) -->
+  <rect x="660" y="145" width="220" height="80" rx="4" fill="rgba(0,255,136,0.10)" stroke="#00ff88" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <text x="770" y="167" text-anchor="middle" fill="#00ff88" font-size="12" font-weight="bold">AgentLoop</text>
+  <text x="770" y="183" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">SHARED — used by both agents</text>
+  <text x="770" y="198" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">build request → call LLM →</text>
+  <text x="770" y="213" text-anchor="middle" fill="rgba(0,255,136,0.65)" font-size="9">parse → handle tools → loop</text>
+
+  <!-- Core boxes below agents -->
+  <rect x="40" y="240" width="190" height="60" rx="4" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.3)" stroke-width="1"/>
+  <text x="135" y="263" text-anchor="middle" fill="#00ff88" font-size="11" font-weight="bold">Memory</text>
+  <text x="135" y="279" text-anchor="middle" fill="rgba(0,255,136,0.6)" font-size="9">ShortTerm (6 turns) + LongTerm (JSON)</text>
+
+  <rect x="260" y="240" width="190" height="60" rx="4" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.3)" stroke-width="1"/>
+  <text x="355" y="263" text-anchor="middle" fill="#00ff88" font-size="11" font-weight="bold">LLMClient</text>
+  <text x="355" y="279" text-anchor="middle" fill="rgba(0,255,136,0.6)" font-size="9">HTTP → Groq API · LLMResult</text>
+
+  <rect x="480" y="240" width="190" height="60" rx="4" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.3)" stroke-width="1"/>
+  <text x="575" y="263" text-anchor="middle" fill="#00ff88" font-size="11" font-weight="bold">ResponseParser</text>
+  <text x="575" y="279" text-anchor="middle" fill="rgba(0,255,136,0.6)" font-size="9">JSON → text / tool_calls / error</text>
+
+  <rect x="700" y="240" width="180" height="60" rx="4" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.3)" stroke-width="1"/>
+  <text x="790" y="263" text-anchor="middle" fill="#00ff88" font-size="11" font-weight="bold">MessageBuilder</text>
+  <text x="790" y="279" text-anchor="middle" fill="rgba(0,255,136,0.6)" font-size="9">system+user+assistant+tool</text>
+
+  <!-- === TOOL LAYER blocks === -->
+  <rect x="40" y="340" width="200" height="60" rx="4" fill="rgba(255,170,0,0.08)" stroke="#ffaa00" stroke-width="1"/>
+  <text x="140" y="365" text-anchor="middle" fill="#ffaa00" font-size="11" font-weight="bold">ToolRunner</text>
+  <text x="140" y="381" text-anchor="middle" fill="rgba(255,170,0,0.6)" font-size="9">thin dispatch wrapper</text>
+
+  <rect x="280" y="340" width="200" height="60" rx="4" fill="rgba(255,170,0,0.08)" stroke="#ffaa00" stroke-width="1"/>
+  <text x="380" y="365" text-anchor="middle" fill="#ffaa00" font-size="11" font-weight="bold">ToolDispatcher</text>
+  <text x="380" y="381" text-anchor="middle" fill="rgba(255,170,0,0.6)" font-size="9">HashMap&lt;String, ToolHandler&gt;</text>
+
+  <rect x="520" y="340" width="200" height="60" rx="4" fill="rgba(255,170,0,0.08)" stroke="#ffaa00" stroke-width="1"/>
+  <text x="620" y="365" text-anchor="middle" fill="#ffaa00" font-size="11" font-weight="bold">ToolWareHouse</text>
+  <text x="620" y="381" text-anchor="middle" fill="rgba(255,170,0,0.6)" font-size="9">tool definitions · optimizer disabled</text>
+
+  <rect x="760" y="340" width="140" height="60" rx="4" fill="rgba(255,170,0,0.08)" stroke="#ffaa00" stroke-width="1"/>
+  <text x="830" y="365" text-anchor="middle" fill="#ffaa00" font-size="11" font-weight="bold">WorkspaceMgr</text>
+  <text x="830" y="381" text-anchor="middle" fill="rgba(255,170,0,0.6)" font-size="9">path resolver · project mgmt</text>
+
+  <!-- Individual tool handlers -->
+  <rect x="40" y="420" width="120" height="44" rx="3" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.2)"/>
+  <text x="100" y="442" text-anchor="middle" fill="rgba(255,170,0,0.7)" font-size="9">ShellTool</text>
+  <text x="100" y="454" text-anchor="middle" fill="rgba(255,170,0,0.4)" font-size="7">run_shell</text>
+
+  <rect x="175" y="420" width="120" height="44" rx="3" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.2)"/>
+  <text x="235" y="442" text-anchor="middle" fill="rgba(255,170,0,0.7)" font-size="9">MakeFileTool</text>
+  <text x="235" y="454" text-anchor="middle" fill="rgba(255,170,0,0.4)" font-size="7">make_file</text>
+
+  <rect x="310" y="420" width="120" height="44" rx="3" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.2)"/>
+  <text x="370" y="442" text-anchor="middle" fill="rgba(255,170,0,0.7)" font-size="9">EditFileTool</text>
+  <text x="370" y="454" text-anchor="middle" fill="rgba(255,170,0,0.4)" font-size="7">edit_file</text>
+
+  <rect x="445" y="420" width="120" height="44" rx="3" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.2)"/>
+  <text x="505" y="442" text-anchor="middle" fill="rgba(255,170,0,0.7)" font-size="9">ReadFileTool</text>
+  <text x="505" y="454" text-anchor="middle" fill="rgba(255,170,0,0.4)" font-size="7">read_file</text>
+
+  <rect x="580" y="420" width="120" height="44" rx="3" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.2)"/>
+  <text x="640" y="442" text-anchor="middle" fill="rgba(255,170,0,0.7)" font-size="9">ListFilesTool</text>
+  <text x="640" y="454" text-anchor="middle" fill="rgba(255,170,0,0.4)" font-size="7">list_files</text>
+
+  <rect x="715" y="420" width="120" height="44" rx="3" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.2)"/>
+  <text x="775" y="442" text-anchor="middle" fill="rgba(255,170,0,0.7)" font-size="9">SafetyCheck</text>
+  <text x="775" y="454" text-anchor="middle" fill="rgba(255,170,0,0.4)" font-size="7">used by ShellTool</text>
+
+  <!-- arrows: NeuonFXApp -> OrchesterAgent -->
+  <line x1="140" y1="92" x2="140" y2="140" stroke="#00f2ff" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.7"/>
+  <line x1="380" y1="92" x2="490" y2="140" stroke="#00f2ff" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.7"/>
+
+  <!-- OrchesterAgent -> AgentLoop -->
+  <line x1="320" y1="185" x2="655" y2="185" stroke="#00ff88" stroke-width="1.2" marker-end="url(#arrowg)" opacity="0.5"/>
+  <!-- CodeAgent -> AgentLoop -->
+  <line x1="490" y1="225" x2="770" y2="230" stroke="#00ff88" stroke-width="1" marker-end="url(#arrowg)" opacity="0.4" stroke-dasharray="3,2"/>
+
+  <!-- OrchesterAgent -> Memory, LLMClient, etc -->
+  <line x1="180" y1="225" x2="135" y2="236" stroke="#00ff88" stroke-width="1" marker-end="url(#arrowg)" opacity="0.4"/>
+  <line x1="490" y1="225" x2="355" y2="236" stroke="#00ff88" stroke-width="1" marker-end="url(#arrowg)" opacity="0.4"/>
+
+  <!-- AgentLoop -> ToolRunner -->
+  <line x1="770" y1="225" x2="140" y2="336" stroke="rgba(255,170,0,0.5)" stroke-width="1.2" marker-end="url(#arrow)" opacity="0.5"/>
+
+  <!-- ToolRunner -> ToolDispatcher -->
+  <line x1="240" y1="370" x2="276" y2="370" stroke="#ffaa00" stroke-width="1" marker-end="url(#arrow)" opacity="0.5"/>
+
+  <!-- ToolDispatcher -> individual tools -->
+  <line x1="380" y1="400" x2="100" y2="416" stroke="rgba(255,170,0,0.3)" stroke-width="1" marker-end="url(#arrow)" opacity="0.4"/>
+  <line x1="380" y1="400" x2="235" y2="416" stroke="rgba(255,170,0,0.3)" stroke-width="1" marker-end="url(#arrow)" opacity="0.4"/>
+  <line x1="380" y1="400" x2="370" y2="416" stroke="rgba(255,170,0,0.3)" stroke-width="1" marker-end="url(#arrow)" opacity="0.4"/>
+  <line x1="480" y1="370" x2="505" y2="416" stroke="rgba(255,170,0,0.3)" stroke-width="1" marker-end="url(#arrow)" opacity="0.4"/>
+  <line x1="620" y1="400" x2="640" y2="416" stroke="rgba(255,170,0,0.3)" stroke-width="1" marker-end="url(#arrow)" opacity="0.4"/>
+</svg>
+</div>
+
+<!-- ============= KEY COMPONENTS ============= -->
+<h2>2. Key Components</h2>
+
+<div class="grid-2">
+  <div class="card">
+    <h4>🔄 AgentLoop <span class="tag tag-new">new</span></h4>
+    <p class="file-path">src/main/java/com/neuon/agent/AgentLoop.java</p>
+    <p style="margin-top:0.3rem">Shared conversation loop consumed by both OrchesterAgent and CodeAgent. Handles:</p>
+    <ul>
+      <li>Building the request body (messages + tools)</li>
+      <li>Calling <code>LLMClient</code> and checking <code>LLMResult</code></li>
+      <li>Parsing responses with <code>ResponseParser</code></li>
+      <li>Executing tool calls via <code>ToolRunner</code></li>
+      <li>Max-step enforcement (default 15)</li>
+      <li>Invalid tool-call detection</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4>📦 LLMResult <span class="tag tag-new">new</span></h4>
+    <p class="file-path">src/main/java/com/neuon/core/LLMResult.java</p>
+    <p style="margin-top:0.3rem">Structured API response record:</p>
+    <ul>
+      <li><code>boolean ok</code> — success/failure</li>
+      <li><code>String body</code> — response body (if ok)</li>
+      <li><code>int statusCode</code> — HTTP status</li>
+      <li><code>String error</code> — error message (if !ok)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4>🧠 Memory <span class="tag tag-mod">refactored</span></h4>
+    <p class="file-path">src/main/java/com/neuon/core/Memory.java</p>
+    <ul>
+      <li><strong>ShortTermMemory</strong> — last 6 conversation pairs (capped), thread-safe</li>
+      <li><strong>LongTermMemory</strong> — JSON file at <code>~/.neuon/LongTermMemory.json</code></li>
+      <li>Auto-skips <code>[ERROR]</code> responses from short-term memory</li>
+      <li>Safe JSON parsing: resets file if corrupt</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4>🛡️ SafetyCheck <span class="tag tag-mod">improved</span></h4>
+    <p class="file-path">src/main/java/com/neuon/tools/SafetyCheck.java</p>
+    <ul>
+      <li>Extended block list: apt, curl, wget, systemctl, dpkg, yum, dnf</li>
+      <li>Path traversal detection in command arguments (<code>../</code>)</li>
+      <li>Automatic command audit log at <code>~/.neuon/safety.log</code></li>
+      <li>Confirmation required for install commands, rm, chmod, etc.</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4>📁 WorkspaceManager <span class="tag tag-new">new</span></h4>
+    <p class="file-path">src/main/java/com/neuon/tools/WorkspaceManager.java</p>
+    <ul>
+      <li>Wraps and extends existing <code>WorkspacePaths</code></li>
+      <li>Safe path resolution, prevents traversal</li>
+      <li>Project creation, file listing, read/write</li>
+      <li>Root: <code>~/Desktop/workspace</code> or <code>$NEUON_WORKSPACE</code></li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h4>🧰 New Tools <span class="tag tag-new">new</span></h4>
+    <p class="file-path">ListFilesTool.java · EditFileTool.java</p>
+    <ul>
+      <li><code>list_files</code> — list directory contents inside workspace</li>
+      <li><code>edit_file</code> — full content replacement, workspace-safe</li>
+      <li>Both registered for orchestrator <em>and</em> code agent</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============= DATA FLOW ============= -->
+<h2>3. Request Lifecycle</h2>
+<div class="diagram-box">
+<svg viewBox="0 0 900 380" width="100%" height="auto">
+  <defs>
+    <marker id="arrow2" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#00f2ff"/>
+    </marker>
+  </defs>
+
+  <!-- Step boxes -->
+  <rect x="20" y="20" width="160" height="50" rx="4" fill="rgba(0,242,255,0.10)" stroke="#00f2ff"/>
+  <text x="100" y="45" text-anchor="middle" fill="#00f2ff" font-size="11" font-weight="bold">1. User types prompt</text>
+  <text x="100" y="60" text-anchor="middle" fill="rgba(0,242,255,0.5)" font-size="8">NeuonFXApp.sendPrompt()</text>
+
+  <line x1="180" y1="45" x2="220" y2="45" stroke="#00f2ff" stroke-width="1.2" marker-end="url(#arrow2)"/>
+
+  <rect x="225" y="20" width="160" height="50" rx="4" fill="rgba(0,242,255,0.10)" stroke="#00f2ff"/>
+  <text x="305" y="45" text-anchor="middle" fill="#00f2ff" font-size="11" font-weight="bold">2. OrchesterAgent</text>
+  <text x="305" y="60" text-anchor="middle" fill="rgba(0,242,255,0.5)" font-size="8">getLLMResponse()</text>
+
+  <line x1="385" y1="45" x2="425" y2="45" stroke="#00f2ff" stroke-width="1.2" marker-end="url(#arrow2)"/>
+
+  <rect x="430" y="20" width="180" height="50" rx="4" fill="rgba(0,255,136,0.10)" stroke="#00ff88"/>
+  <text x="520" y="45" text-anchor="middle" fill="#00ff88" font-size="11" font-weight="bold">3. AgentLoop.run()</text>
+  <text x="520" y="60" text-anchor="middle" fill="rgba(0,255,136,0.5)" font-size="8">system prompt + tools + history</text>
+
+  <line x1="610" y1="45" x2="650" y2="45" stroke="#00f2ff" stroke-width="1.2" marker-end="url(#arrow2)"/>
+
+  <rect x="655" y="20" width="160" height="50" rx="4" fill="rgba(0,242,255,0.10)" stroke="#00f2ff"/>
+  <text x="735" y="45" text-anchor="middle" fill="#00f2ff" font-size="11" font-weight="bold">4. LLMClient.ask()</text>
+  <text x="735" y="60" text-anchor="middle" fill="rgba(0,242,255,0.5)" font-size="8">POST → api.groq.com</text>
+
+  <!-- Loop expansion -->
+  <rect x="20" y="95" width="200" height="34" rx="4" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.25)"/>
+  <text x="120" y="116" text-anchor="middle" fill="#00ff88" font-size="10">ResponseParser → parse JSON</text>
+
+  <rect x="240" y="95" width="200" height="34" rx="4" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.25)"/>
+  <text x="340" y="116" text-anchor="middle" fill="#00ff88" font-size="10">isDone? → return text to user</text>
+
+  <rect x="460" y="95" width="200" height="34" rx="4" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.25)"/>
+  <text x="560" y="116" text-anchor="middle" fill="#ffaa00" font-size="10">isToolCall? → ToolRunner</text>
+
+  <rect x="680" y="95" width="200" height="34" rx="4" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.25)"/>
+  <text x="780" y="116" text-anchor="middle" fill="#ffaa00" font-size="10">ToolDispatcher → ToolHandler</text>
+
+  <!-- Loop arrow back -->
+  <path d="M 780 129 L 780 170 L 520 170 L 520 145" fill="none" stroke="rgba(0,255,136,0.3)" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow2)"/>
+  <text x="650" y="164" text-anchor="middle" fill="rgba(0,255,136,0.3)" font-size="9">↻ loop (max 15)</text>
+
+  <!-- Decision diamond below -->
+  <polygon points="520,210 560,240 520,270 480,240" fill="rgba(0,242,255,0.06)" stroke="#00f2ff" stroke-width="1"/>
+  <text x="520" y="244" text-anchor="middle" fill="#00f2ff" font-size="9">invoke_code</text>
+  <text x="520" y="256" text-anchor="middle" fill="#00f2ff" font-size="9">_agent?</text>
+
+  <line x1="520" y1="270" x2="520" y2="300" stroke="#00f2ff" stroke-width="1" marker-end="url(#arrow2)"/>
+
+  <rect x="430" y="305" width="180" height="40" rx="4" fill="rgba(0,255,136,0.10)" stroke="#00ff88"/>
+  <text x="520" y="325" text-anchor="middle" fill="#00ff88" font-size="10" font-weight="bold">CodeAgent.startCoding()</text>
+  <text x="520" y="339" text-anchor="middle" fill="rgba(0,255,136,0.5)" font-size="8">→ AgentLoop (own instance)</text>
+
+  <line x1="160" y1="129" x2="120" y2="129" stroke="#00f2ff" stroke-width="1" marker-end="url(#arrow2)"/>
+  <rect x="20" y="140" width="130" height="34" rx="4" fill="rgba(0,242,255,0.06)" stroke="rgba(0,242,255,0.25)"/>
+  <text x="85" y="161" text-anchor="middle" fill="#00f2ff" font-size="10">addToolResult</text>
+
+  <!-- Error branch -->
+  <rect x="20" y="200" width="200" height="34" rx="4" fill="rgba(255,85,85,0.06)" stroke="rgba(255,85,85,0.25)"/>
+  <text x="120" y="221" text-anchor="middle" fill="#ff5555" font-size="10">Error? → return "[ERROR] ..."</text>
+  <text x="120" y="233" text-anchor="middle" fill="rgba(255,85,85,0.4)" font-size="8">not added to ShortTermMemory</text>
+
+  <line x1="340" y1="112" x2="460" y2="112" stroke="#00f2ff" stroke-width="0.5" opacity="0.4"/>
+  <line x1="560" y1="112" x2="460" y2="112" stroke="#00f2ff" stroke-width="0.5" opacity="0.4"/>
+  <line x1="560" y1="112" x2="676" y2="112" stroke="#ffaa00" stroke-width="0.5" opacity="0.4"/>
+</svg>
+</div>
+
+<ol class="flow-list">
+  <li><strong>User types a prompt</strong> in the JavaFX input field and presses Enter (or clicks FIRE/SPEAK). <code>NeuonFXApp.sendPrompt()</code> starts a background <code>Task&lt;Void&gt;</code>.</li>
+  <li><strong>OrchesterAgent.getLLMResponse()</strong> is called. It loads the system prompt (from <code>PromptOrchester</code>), the tool definitions, and the short-term memory pairs, then delegates to <code>AgentLoop</code>.</li>
+  <li><strong>AgentLoop.run()</strong> builds the message array (system + history + current user), constructs the JSON body via <code>RequestBuilder</code>, and calls <code>LLMClient.ask()</code>.</li>
+  <li><strong>LLMClient</strong> sends an HTTP POST to the Groq API endpoint. Returns an <code>LLMResult</code> record (ok + body + status + error). If 429, retries once after <code>Retry-After</code> delay.</li>
+  <li><strong>ResponseParser</strong> parses the JSON body. Three outcomes:
+    <ul>
+      <li><strong>stop</strong> → return the text content to the user</li>
+      <li><strong>tool_calls</strong> → extract each call (name, args, id), execute via <code>ToolRunner</code> → <code>ToolDispatcher</code> → <code>ToolHandler</code>, inject the result back, and <strong>loop</strong> (up to 15 steps)</li>
+      <li><strong>error</strong> → return error text; not added to memory</li>
+    </ul>
+  </li>
+  <li><strong>OrchesterAgent</strong> stores the final response in <code>ShortTermMemory</code> (unless it starts with <code>[ERROR]</code>) and returns it to the UI.</li>
+  <li>If the orchestrator calls <code>invoke_code_agent</code>, the <strong>CodeAgent</strong> spawns its <em>own</em> <code>AgentLoop</code> instance with its own system prompt, tool set, and memory. It runs autonomously until it responds <code>TASK COMPLETE</code> or hits the step limit.</li>
+</ol>
+
+<!-- ============= PACKAGE STRUCTURE ============= -->
+<h2>4. Package Map</h2>
+<div class="diagram-box">
+<svg viewBox="0 0 900 360" width="100%" height="auto">
+  <!-- com.neuon.agent -->
+  <rect x="20" y="10" width="270" height="170" rx="6" fill="rgba(0,255,136,0.04)" stroke="rgba(0,255,136,0.2)"/>
+  <text x="40" y="34" fill="#00ff88" font-size="12" font-weight="bold">com.neuon.agent</text>
+  <rect x="36" y="44" width="238" height="24" rx="3" fill="rgba(0,255,136,0.08)" stroke="rgba(0,255,136,0.15)"/>
+  <text x="155" y="61" text-anchor="middle" fill="#00ff88" font-size="10">AgentLoop.java</text>
+  <rect x="36" y="72" width="238" height="24" rx="3" fill="rgba(0,255,136,0.08)" stroke="rgba(0,255,136,0.15)"/>
+  <text x="155" y="89" text-anchor="middle" fill="#00ff88" font-size="10">OrchesterAgent.java</text>
+  <rect x="36" y="100" width="238" height="24" rx="3" fill="rgba(0,255,136,0.08)" stroke="rgba(0,255,136,0.15)"/>
+  <text x="155" y="117" text-anchor="middle" fill="#00ff88" font-size="10">CodeAgent.java</text>
+  <rect x="36" y="128" width="238" height="24" rx="3" fill="rgba(0,255,136,0.08)" stroke="rgba(0,255,136,0.15)"/>
+  <text x="155" y="145" text-anchor="middle" fill="#00ff88" font-size="10">PromptOrchester.java · PromptCodeAgent.java</text>
+  <rect x="36" y="156" width="238" height="20" rx="3" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.1)"/>
+  <text x="155" y="170" text-anchor="middle" fill="rgba(0,255,136,0.4)" font-size="9">ToolOptimzerModel.java (disabled)</text>
+
+  <!-- com.neuon.core -->
+  <rect x="315" y="10" width="270" height="170" rx="6" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.2)"/>
+  <text x="335" y="34" fill="#00f2ff" font-size="12" font-weight="bold">com.neuon.core</text>
+  <rect x="331" y="44" width="238" height="24" rx="3" fill="rgba(0,242,255,0.08)" stroke="rgba(0,242,255,0.15)"/>
+  <text x="450" y="61" text-anchor="middle" fill="#00f2ff" font-size="10">LLMClient.java · LLMResult.java</text>
+  <rect x="331" y="72" width="238" height="24" rx="3" fill="rgba(0,242,255,0.08)" stroke="rgba(0,242,255,0.15)"/>
+  <text x="450" y="89" text-anchor="middle" fill="#00f2ff" font-size="10">ResponseParser.java</text>
+  <rect x="331" y="100" width="238" height="24" rx="3" fill="rgba(0,242,255,0.08)" stroke="rgba(0,242,255,0.15)"/>
+  <text x="450" y="117" text-anchor="middle" fill="#00f2ff" font-size="10">MessageBuilder.java · RequestBuilder.java</text>
+  <rect x="331" y="128" width="238" height="24" rx="3" fill="rgba(0,242,255,0.08)" stroke="rgba(0,242,255,0.15)"/>
+  <text x="450" y="145" text-anchor="middle" fill="#00f2ff" font-size="10">Memory.java</text>
+  <rect x="331" y="156" width="238" height="20" rx="3" fill="rgba(0,242,255,0.06)" stroke="rgba(0,242,255,0.1)"/>
+  <text x="450" y="170" text-anchor="middle" fill="rgba(0,242,255,0.4)" font-size="9">HardwareMonitor.java</text>
+
+  <!-- com.neuon.tools -->
+  <rect x="610" y="10" width="270" height="170" rx="6" fill="rgba(255,170,0,0.04)" stroke="rgba(255,170,0,0.2)"/>
+  <text x="630" y="34" fill="#ffaa00" font-size="12" font-weight="bold">com.neuon.tools</text>
+  <rect x="626" y="44" width="238" height="20" rx="3" fill="rgba(255,170,0,0.08)" stroke="rgba(255,170,0,0.15)"/>
+  <text x="745" y="58" text-anchor="middle" fill="#ffaa00" font-size="9">ShellTool · SafetyCheck · Runner</text>
+  <rect x="626" y="67" width="238" height="20" rx="3" fill="rgba(255,170,0,0.08)" stroke="rgba(255,170,0,0.15)"/>
+  <text x="745" y="81" text-anchor="middle" fill="#ffaa00" font-size="9">MakeFileTool · MakeDirectoryTool</text>
+  <rect x="626" y="90" width="238" height="20" rx="3" fill="rgba(255,170,0,0.08)" stroke="rgba(255,170,0,0.15)"/>
+  <text x="745" y="104" text-anchor="middle" fill="#ffaa00" font-size="9">ReadFileToolHandler · ListFilesTool</text>
+  <rect x="626" y="113" width="238" height="20" rx="3" fill="rgba(255,170,0,0.08)" stroke="rgba(255,170,0,0.15)"/>
+  <text x="745" y="127" text-anchor="middle" fill="#ffaa00" font-size="9">EditFileTool · YouTubeToolHandler</text>
+  <rect x="626" y="136" width="238" height="20" rx="3" fill="rgba(255,170,0,0.08)" stroke="rgba(255,170,0,0.15)"/>
+  <text x="745" y="150" text-anchor="middle" fill="#ffaa00" font-size="9">ToolDispatcher · ToolRunner</text>
+  <rect x="626" y="159" width="238" height="18" rx="3" fill="rgba(255,170,0,0.06)" stroke="rgba(255,170,0,0.1)"/>
+  <text x="745" y="172" text-anchor="middle" fill="rgba(255,170,0,0.4)" font-size="8">ToolWareHouse · WorkspaceManager</text>
+
+  <!-- Connector lines between packages -->
+  <line x1="290" y1="95" x2="313" y2="95" stroke="rgba(0,242,255,0.2)" stroke-width="1"/>
+  <text x="301" y="90" text-anchor="middle" fill="rgba(0,242,255,0.2)" font-size="8">uses</text>
+  <line x1="585" y1="95" x2="608" y2="95" stroke="rgba(255,170,0,0.2)" stroke-width="1"/>
+  <text x="596" y="90" text-anchor="middle" fill="rgba(255,170,0,0.2)" font-size="8">uses</text>
+
+  <!-- UI package below -->
+  <rect x="20" y="200" width="200" height="130" rx="6" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.2)"/>
+  <text x="40" y="224" fill="#00f2ff" font-size="12" font-weight="bold">com.neuon.UI</text>
+  <rect x="36" y="234" width="168" height="20" rx="3" fill="rgba(0,242,255,0.08)" stroke="rgba(0,242,255,0.15)"/>
+  <text x="120" y="248" text-anchor="middle" fill="#00f2ff" font-size="9">NeuonFXApp.java</text>
+  <rect x="36" y="258" width="168" height="20" rx="3" fill="rgba(0,242,255,0.08)" stroke="rgba(0,242,255,0.15)"/>
+  <text x="120" y="272" text-anchor="middle" fill="#00f2ff" font-size="9">FXInterface.java</text>
+  <rect x="36" y="282" width="168" height="20" rx="3" fill="rgba(0,242,255,0.08)" stroke="rgba(0,242,255,0.15)"/>
+  <text x="120" y="296" text-anchor="middle" fill="#00f2ff" font-size="9">Interface.java</text>
+  <rect x="36" y="306" width="168" height="20" rx="3" fill="rgba(0,242,255,0.06)" stroke="rgba(0,242,255,0.1)"/>
+  <text x="120" y="320" text-anchor="middle" fill="rgba(0,242,255,0.4)" font-size="9">VoiceHandler.java</text>
+
+  <!-- Test package -->
+  <rect x="620" y="200" width="260" height="130" rx="6" fill="rgba(0,255,136,0.04)" stroke="rgba(0,255,136,0.2)" stroke-dasharray="4,3"/>
+  <text x="640" y="224" fill="#00ff88" font-size="12" font-weight="bold">src/test/java</text>
+  <rect x="636" y="234" width="228" height="20" rx="3" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.1)"/>
+  <text x="750" y="248" text-anchor="middle" fill="#00ff88" font-size="9">ResponseParserTest.java (7 tests)</text>
+  <rect x="636" y="258" width="228" height="20" rx="3" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.1)"/>
+  <text x="750" y="272" text-anchor="middle" fill="#00ff88" font-size="9">MessageBuilderTest.java (6 tests)</text>
+  <rect x="636" y="282" width="228" height="20" rx="3" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.1)"/>
+  <text x="750" y="296" text-anchor="middle" fill="#00ff88" font-size="9">WorkspacePathsTest.java (8 tests)</text>
+  <rect x="636" y="306" width="228" height="20" rx="3" fill="rgba(0,255,136,0.06)" stroke="rgba(0,255,136,0.1)"/>
+  <text x="750" y="320" text-anchor="middle" fill="#00ff88" font-size="9">ToolWareHouseTest.java (6 tests)</text>
+
+  <!-- arrow from UI to agent -->
+  <line x1="120" y1="200" x2="155" y2="182" stroke="#00f2ff" stroke-width="1" marker-end="url(#arrow)" opacity="0.4"/>
+</svg>
+</div>
+
+<!-- ============= TOOL REGISTRY ============= -->
+<h2>5. Tool Matrix</h2>
+<div class="card">
+  <table style="width:100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.9rem;">
+    <tr style="border-bottom: 1px solid var(--border);">
+      <th style="text-align:left; padding:6px 8px; color:var(--cyan);">Tool</th>
+      <th style="text-align:left; padding:6px 8px; color:var(--cyan);">Handler</th>
+      <th style="text-align:center; padding:6px 8px; color:var(--green);">Orchestrator</th>
+      <th style="text-align:center; padding:6px 8px; color:var(--green);">Code Agent</th>
+      <th style="text-align:left; padding:6px 8px; color:var(--cyan);">Params</th>
+    </tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>run_shell</code></td><td>ShellTool</td><td style="text-align:center">✓</td><td style="text-align:center">✓</td><td><code>command</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>make_file</code></td><td>MakeFileTool</td><td style="text-align:center">✓</td><td style="text-align:center">✓</td><td><code>file_path</code>, <code>file_content</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>make_project_directory</code></td><td>MakeDirectoryTool</td><td style="text-align:center">✓</td><td style="text-align:center">✓</td><td><code>dir_name</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>read_file</code></td><td>ReadFileToolHandler</td><td style="text-align:center">✓</td><td style="text-align:center">✓</td><td><code>file_path</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>list_files</code></td><td>ListFilesTool</td><td style="text-align:center">✓</td><td style="text-align:center">✓</td><td><code>path</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>edit_file</code></td><td>EditFileTool</td><td style="text-align:center">✓</td><td style="text-align:center">✓</td><td><code>file_path</code>, <code>file_content</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>invoke_code_agent</code></td><td>CodeToolHandler</td><td style="text-align:center">✓</td><td style="text-align:center">—</td><td><code>prompt</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>update_long_term_memory</code></td><td>LongMemoryToolHandler</td><td style="text-align:center">✓</td><td style="text-align:center">—</td><td><code>memory_category</code>, <code>something_to_remember</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>request_memories</code></td><td>RequestMemoryToolHandler</td><td style="text-align:center">✓</td><td style="text-align:center">—</td><td><code>requested_memories</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>find_on_youtube</code></td><td>YouTubeToolHandler</td><td style="text-align:center">✓</td><td style="text-align:center">—</td><td><code>search_query</code></td></tr>
+    <tr style="border-bottom: 1px solid rgba(0,242,255,0.08);"><td><code>send_email</code></td><td>EmailTool</td><td style="text-align:center">✓</td><td style="text-align:center">—</td><td><code>To</code>, <code>Subject</code>, <code>Body</code></td></tr>
+    <tr><td><code>exit_Neuon</code></td><td>ExitToolHandler</td><td style="text-align:center">✓</td><td style="text-align:center">—</td><td><code>exit_message</code></td></tr>
+  </table>
+</div>
+
+<!-- ============= UI LAYOUT ============= -->
+<h2>6. UI Layout</h2>
+<div class="diagram-box">
+<svg viewBox="0 0 860 520" width="100%" height="auto">
+  <!-- Background grid -->
+  <rect x="10" y="10" width="840" height="500" rx="6" fill="rgba(0,15,25,0.6)" stroke="rgba(0,242,255,0.15)"/>
+
+  <!-- Top bar -->
+  <rect x="20" y="20" width="820" height="50" rx="4" fill="rgba(0,242,255,0.06)" stroke="rgba(0,242,255,0.2)"/>
+  <text x="30" y="50" fill="#00f2ff" font-size="11">CORE_ID: NX-8800</text>
+  <text x="240" y="50" fill="#00f2ff" font-size="11">TIME: 21:42:00</text>
+  <text x="430" y="50" fill="#00f2ff" font-size="11">MODEL: openai/gpt-oss-120b</text>
+  <circle cx="720" cy="45" r="5" fill="#00ff88"/>
+  <text x="735" y="50" fill="#00f2ff" font-size="11">API</text>
+
+  <!-- Left column: Hardware + Workspace -->
+  <rect x="20" y="80" width="170" height="360" rx="4" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.12)"/>
+  <text x="105" y="100" text-anchor="middle" fill="#00f2ff" font-size="9" font-weight="bold">HARDWARE MONITOR</text>
+  <rect x="28" y="108" width="154" height="140" rx="2" fill="rgba(0,0,0,0.3)"/>
+  <text x="105" y="160" text-anchor="middle" fill="rgba(0,242,255,0.3)" font-size="8">CPU / RAM / DISK / NET</text>
+
+  <text x="60" y="270" fill="#00f2ff" font-size="9" font-weight="bold">WORKSPACE FILES</text>
+  <rect x="28" y="278" width="154" height="150" rx="2" fill="rgba(0,0,0,0.3)"/>
+  <text x="105" y="320" text-anchor="middle" fill="rgba(0,242,255,0.3)" font-size="8">[DIR] login_app/</text>
+  <text x="105" y="335" text-anchor="middle" fill="rgba(0,242,255,0.3)" font-size="8">[FILE] LoginApp.java</text>
+  <text x="105" y="350" text-anchor="middle" fill="rgba(0,242,255,0.3)" font-size="8">[FILE] README.md</text>
+
+  <!-- Center-left: Status Panel -->
+  <rect x="200" y="80" width="210" height="360" rx="4" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.12)"/>
+  <text x="305" y="100" text-anchor="middle" fill="#00f2ff" font-size="9" font-weight="bold">STATUS</text>
+  <text x="210" y="125" fill="#00f2ff" font-size="12" font-weight="bold">IDLE</text>
+  <text x="210" y="145" fill="rgba(0,242,255,0.5)" font-size="9">Model: openai/gpt-oss-120b</text>
+  <text x="210" y="162" fill="rgba(0,242,255,0.5)" font-size="9">API: CONFIGURED</text>
+
+  <text x="210" y="190" fill="#39ced3" font-size="10">Task: Build login app</text>
+  <text x="210" y="207" fill="#39ced3" font-size="10">Project: login_app</text>
+  <text x="210" y="224" fill="#39ced3" font-size="10">Step: Running javac</text>
+  <text x="210" y="241" fill="#39ced3" font-size="10">Result: Success</text>
+
+  <text x="210" y="270" fill="#00f2ff" font-size="9" font-weight="bold">CURRENT TOOL CALL</text>
+  <rect x="208" y="278" width="194" height="150" rx="2" fill="rgba(0,0,0,0.3)"/>
+  <text x="210" y="298" fill="#ffaa00" font-size="8">Tool: run_shell</text>
+  <text x="210" y="313" fill="#ffaa00" font-size="8">Args: {"command":"javac LoginApp.java"}</text>
+
+  <!-- Center: Animated rings -->
+  <rect x="420" y="80" width="200" height="360" rx="4" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.12)"/>
+  <circle cx="520" cy="220" r="80" fill="none" stroke="rgba(0,242,255,0.2)" stroke-width="1" stroke-dasharray="10,10"/>
+  <circle cx="520" cy="220" r="65" fill="none" stroke="rgba(0,242,255,0.15)" stroke-width="2"/>
+  <circle cx="520" cy="220" r="50" fill="none" stroke="rgba(0,242,255,0.1)" stroke-width="3"/>
+  <text x="520" y="215" text-anchor="middle" fill="#00f2ff" font-size="22" font-weight="bold">NEUON</text>
+  <text x="520" y="235" text-anchor="middle" fill="rgba(0,242,255,0.5)" font-size="9">SYSTEM IDLE</text>
+
+  <!-- Right: Neural Output -->
+  <rect x="630" y="80" width="200" height="360" rx="4" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.12)"/>
+  <text x="730" y="100" text-anchor="middle" fill="#00f2ff" font-size="9" font-weight="bold">NEURAL OUTPUT</text>
+  <rect x="638" y="108" width="184" height="320" rx="2" fill="rgba(0,0,0,0.3)"/>
+  <text x="648" y="130" fill="#39ced3" font-size="8">&gt; build a login app</text>
+  <text x="648" y="146" fill="#39ced3" font-size="8">Task delegated to code agent.</text>
+  <text x="648" y="162" fill="#39ced3" font-size="8">Creating project...</text>
+
+  <!-- Bottom: History + Input + Output split -->
+  <rect x="20" y="450" width="410" height="50" rx="4" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.12)"/>
+  <text x="225" y="470" text-anchor="middle" fill="#00f2ff" font-size="8">COMMAND HISTORY</text>
+
+  <rect x="440" y="450" width="180" height="50" rx="4" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.12)"/>
+  <text x="530" y="470" text-anchor="middle" fill="#00f2ff" font-size="8">INPUT [FIRE] [SPEAK] [CANCEL] [CLEAR]</text>
+
+  <rect x="630" y="450" width="210" height="50" rx="4" fill="rgba(0,242,255,0.04)" stroke="rgba(0,242,255,0.12)"/>
+  <text x="735" y="470" text-anchor="middle" fill="#00ff88" font-size="8">STDOUT / STDERR</text>
+</svg>
+</div>
+
+<!-- ============= KEY CHANGES ============= -->
+<h2>7. What Changed in v0.2</h2>
+<div class="grid-3">
+  <div class="card">
+    <h4>🔄 Shared Agent Loop <span class="tag tag-new">new</span></h4>
+    <p style="font-size:0.85rem">OrchesterAgent and CodeAgent no longer duplicate the conversation loop. <code>AgentLoop</code> handles request building, LLM calls, parsing, and tool execution.</p>
+  </div>
+  <div class="card">
+    <h4>📦 Structured API Results <span class="tag tag-new">new</span></h4>
+    <p style="font-size:0.85rem"><code>LLMResult</code> replaces raw string returns. Every API call now returns ok/body/statusCode/error. 429 rate limits trigger automatic retry.</p>
+  </div>
+  <div class="card">
+    <h4>🧰 Code Agent Tools <span class="tag tag-new">new</span></h4>
+    <p style="font-size:0.85rem">CodeAgent went from 3 tools to 6: <code>list_files</code>, <code>read_file</code>, <code>edit_file</code> added. Can now inspect existing projects before modifying.</p>
+  </div>
+  <div class="card">
+    <h4>📁 Workspace Service <span class="tag tag-new">new</span></h4>
+    <p style="font-size:0.85rem"><code>WorkspaceManager</code> provides safe path resolution, project creation, file listing, read/write. Env var <code>NEUON_WORKSPACE</code> overrides default <code>~/Desktop/workspace</code>.</p>
+  </div>
+  <div class="card">
+    <h4>🛡️ Safety Improvements <span class="tag tag-mod">improved</span></h4>
+    <p style="font-size:0.85rem">Extended block list, path traversal detection, command audit log at <code>~/.neuon/safety.log</code>, confirmation for installs.</p>
+  </div>
+  <div class="card">
+    <h4>💻 UI Upgrades <span class="tag tag-mod">improved</span></h4>
+    <p style="font-size:0.85rem">Status indicator (IDLE/THINKING/ERROR), model name, API key dot, workspace file list, tool call display, stdout/stderr panels, Cancel + Clear buttons.</p>
+  </div>
+  <div class="card">
+    <h4>🧠 Memory Cleanup <span class="tag tag-mod">improved</span></h4>
+    <p style="font-size:0.85rem">STM capped at 6 exchanges. Error responses (<code>[ERROR]</code>) are never stored. Corrupt JSON files auto-reset. Optimizer disabled.</p>
+  </div>
+  <div class="card">
+    <h4>🧪 Test Suite <span class="tag tag-new">new</span></h4>
+    <p style="font-size:0.85rem">27 JUnit 5 tests covering ResponseParser, MessageBuilder, WorkspacePaths, and ToolWareHouse. Run with <code>mvn test</code>.</p>
+  </div>
+  <div class="card">
+    <h4>⚡ Prompt Tightening <span class="tag tag-mod">improved</span></h4>
+    <p style="font-size:0.85rem">Shorter operational prompts. Orchestrator told to delegate coding tasks. Code agent gets explicit 5-step workflow. Lower token burn.</p>
+  </div>
+</div>
+</body>
+</html>

@@ -13,7 +13,9 @@ public class ResponseParser {
     private JsonObject rawMessage; // the full assistant message, for history
 
     public ResponseParser parse(String responseBody) {
-        System.err.println("RAW: " + responseBody);
+        if (Boolean.parseBoolean(System.getenv().getOrDefault("NEUON_DEBUG_LLM", "false"))) {
+            System.err.println("RAW: " + responseBody);
+        }
         try {
             JsonObject root = JsonParser.parseString(responseBody).getAsJsonObject();
 
@@ -63,7 +65,6 @@ public class ResponseParser {
                 this.toolCalls = rawMessage.getAsJsonArray("tool_calls");
             }
         } catch (Exception e) {
-            e.printStackTrace();
             this.stopReason = "error";
             this.textContent = "[ERROR] Parse error: " + e.getMessage();
         }

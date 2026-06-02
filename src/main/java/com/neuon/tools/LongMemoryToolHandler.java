@@ -20,7 +20,6 @@ public class LongMemoryToolHandler implements ToolHandler {
             String memoryCategory = categoryEl.getAsString();
             return memory.updateLongTermMemory(memoryCategory, newMemory);
         } catch (Exception e) {
-            e.printStackTrace();
             return "[ERROR] " + e.getMessage();
         }
     }

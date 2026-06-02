@@ -57,18 +57,31 @@ public class NeuonFXApp extends Application {
     private boolean isProcessing;
 
     private ScheduledExecutorService hwScheduler;
-    
+
     private HardwareMonitor hardwareMonitor;
-    private TextArea hwMonitor;  
+    private TextArea hwMonitor;
+    private TextArea workspaceFileList;
+    private TextArea toolCallDisplay;
+    private TextArea stdoutOutput;
+    private TextArea stderrOutput;
+    private Label statusIndicator;
+    private Label apiKeyStatus;
+    private Label modelNameLabel;
+    private Label taskLabel;
+    private Label projectLabel;
+    private Label stepLabel;
+    private Label resultLabel;
+    private Button cancelBtn;
+    private Button clearBtn;
+    private Task<Void> currentTask;
+    private Thread currentTaskThread;
     private OrchesterAgent orchesterAgent; 
-    private Memory memory;
     private VoiceHandler voiceHandler;
     private FXInterface fxInterface;
 
     @Override
     public void start(Stage stage) {
         
-        memory = new Memory();
         voiceHandler = new VoiceHandler();
 
         StackPane mainRoot = buildUI();
@@ -77,13 +90,13 @@ public class NeuonFXApp extends Application {
 
         orchesterAgent = new OrchesterAgent();
 
-        Scene scene = new Scene(mainRoot, 1200, 800);
+        Scene scene = new Scene(mainRoot, 1400, 900);
         scene.setFill(Color.web("#020b10"));
 
         stage.setTitle("NEUON | AI CORE");
         stage.setScene(scene);
         stage.setOnCloseRequest(e -> {
-            memory.clearShortMemory();
+            clearAgentMemory();
             stopAnimations();
         });
         scene.setOnKeyPressed(e -> {
@@ -95,10 +108,14 @@ public class NeuonFXApp extends Application {
         stage.show();
 
         fxInterface.setOutputArea(outputArea);
+        fxInterface.setToolCallTextArea(toolCallDisplay);
+        fxInterface.setStdoutTextArea(stdoutOutput);
+        fxInterface.setStderrTextArea(stderrOutput);
         fxInterface.sendOutput("[SYSTEM] Ready Boss");
         hardwareMonitor = new HardwareMonitor();
         startHardwareMonitoring();
         startAnimations();
+        refreshWorkspaceFileList();
     }
 
     private StackPane buildUI() {
@@ -125,7 +142,7 @@ public class NeuonFXApp extends Application {
         scanline.setMouseTransparent(true);
 
         HBox topBar = createTopBar();
-        grid.add(topBar, 0, 0, 3, 1);
+        grid.add(topBar, 0, 0, 4, 1);
 
         VBox leftPanel = createPanel("HARDWARE MONITOR");
         hwMonitor = new TextArea();
@@ -137,12 +154,80 @@ public class NeuonFXApp extends Application {
             "-fx-font-family: 'Consolas', monospace;" +
             "-fx-font-size: 11px;"
         );
+        hwMonitor.setPrefHeight(200);
         leftPanel.getChildren().add(hwMonitor);
-        VBox.setVgrow(hwMonitor, Priority.ALWAYS);
-        grid.add(leftPanel, 0, 1);
+
+        VBox wsPanel = createPanel("WORKSPACE FILES");
+        workspaceFileList = new TextArea();
+        workspaceFileList.setEditable(false);
+        workspaceFileList.setWrapText(true);
+        workspaceFileList.setStyle(
+            "-fx-control-inner-background: black;" +
+            "-fx-text-fill: #00f2ff;" +
+            "-fx-font-family: 'Consolas', monospace;" +
+            "-fx-font-size: 11px;"
+        );
+        workspaceFileList.setPrefHeight(200);
+        VBox.setVgrow(workspaceFileList, Priority.ALWAYS);
+        wsPanel.getChildren().add(workspaceFileList);
+
+        VBox leftMain = new VBox(10, leftPanel, wsPanel);
+        VBox.setVgrow(wsPanel, Priority.ALWAYS);
+        grid.add(leftMain, 0, 1);
+
+        VBox centerLeftPanel = createPanel("STATUS");
+        VBox statusContent = new VBox(8);
+        statusContent.setPadding(new Insets(4));
+
+        statusIndicator = new Label("IDLE");
+        statusIndicator.setTextFill(Color.web("#00f2ff"));
+        statusIndicator.setFont(Font.font("Consolas", FontWeight.BOLD, 14));
+
+        modelNameLabel = new Label("Model: " + getModelName());
+        modelNameLabel.setTextFill(Color.web("#00f2ff"));
+        modelNameLabel.setFont(Font.font("Consolas", 11));
+
+        apiKeyStatus = new Label(apiKeyStatusText());
+        apiKeyStatus.setTextFill(Color.web("#00f2ff"));
+        apiKeyStatus.setFont(Font.font("Consolas", 11));
+
+        VBox taskBox = new VBox(4);
+        taskLabel = new Label("Task: --");
+        taskLabel.setTextFill(Color.web("#39ced3"));
+        taskLabel.setFont(Font.font("Consolas", 11));
+        projectLabel = new Label("Project: --");
+        projectLabel.setTextFill(Color.web("#39ced3"));
+        projectLabel.setFont(Font.font("Consolas", 11));
+        stepLabel = new Label("Step: --");
+        stepLabel.setTextFill(Color.web("#39ced3"));
+        stepLabel.setFont(Font.font("Consolas", 11));
+        resultLabel = new Label("Result: --");
+        resultLabel.setTextFill(Color.web("#39ced3"));
+        resultLabel.setFont(Font.font("Consolas", 11));
+        taskBox.getChildren().addAll(taskLabel, projectLabel, stepLabel, resultLabel);
+
+        Label toolCallHeader = new Label("CURRENT TOOL CALL");
+        toolCallHeader.setTextFill(Color.web("#00f2ff"));
+        toolCallHeader.setFont(Font.font("Consolas", FontWeight.BOLD, 11));
+
+        toolCallDisplay = new TextArea();
+        toolCallDisplay.setEditable(false);
+        toolCallDisplay.setWrapText(true);
+        toolCallDisplay.setPrefHeight(80);
+        toolCallDisplay.setStyle(
+            "-fx-control-inner-background: black;" +
+            "-fx-text-fill: #ffaa00;" +
+            "-fx-font-family: 'Consolas', monospace;" +
+            "-fx-font-size: 11px;"
+        );
+
+        statusContent.getChildren().addAll(statusIndicator, modelNameLabel, apiKeyStatus, taskBox, toolCallHeader, toolCallDisplay);
+        VBox.setVgrow(toolCallDisplay, Priority.ALWAYS);
+        centerLeftPanel.getChildren().add(statusContent);
+        grid.add(centerLeftPanel, 1, 1);
 
         StackPane center = createCenterArea();
-        grid.add(center, 1, 1);
+        grid.add(center, 2, 1);
 
         VBox rightPanel = createPanel("NEURAL OUTPUT");
         outputArea = new TextArea();
@@ -157,16 +242,16 @@ public class NeuonFXApp extends Application {
         outputArea.setText("> Awaiting user input...");
         rightPanel.getChildren().add(outputArea);
         VBox.setVgrow(outputArea, Priority.ALWAYS);
-        grid.add(rightPanel, 2, 1);
-    
+        grid.add(rightPanel, 3, 1);
 
         HBox bottomBar = createBottomBar();
-        grid.add(bottomBar, 0, 2, 3, 1);
+        grid.add(bottomBar, 0, 2, 4, 1);
 
-        ColumnConstraints c1 = new ColumnConstraints(); c1.setPercentWidth(25);
-        ColumnConstraints c2 = new ColumnConstraints(); c2.setPercentWidth(50);
+        ColumnConstraints c1 = new ColumnConstraints(); c1.setPercentWidth(18);
+        ColumnConstraints c2 = new ColumnConstraints(); c2.setPercentWidth(22);
         ColumnConstraints c3 = new ColumnConstraints(); c3.setPercentWidth(25);
-        grid.getColumnConstraints().addAll(c1, c2, c3);
+        ColumnConstraints c4 = new ColumnConstraints(); c4.setPercentWidth(35);
+        grid.getColumnConstraints().addAll(c1, c2, c3, c4);
 
         RowConstraints r1 = new RowConstraints(); r1.setPercentHeight(10);
         RowConstraints r2 = new RowConstraints(); r2.setPercentHeight(70);
@@ -199,7 +284,21 @@ public class NeuonFXApp extends Application {
         emu.setTextFill(Color.web("#00f2ff"));
         emu.setFont(Font.font("monospace", 12));
 
-        bar.getChildren().addAll(coreId, clockLabel, emu);
+        String model = getModelName();
+        Label modelLabel = new Label("MODEL: " + model);
+        modelLabel.setTextFill(Color.web("#00f2ff"));
+        modelLabel.setFont(Font.font("monospace", 12));
+
+        String apiKey = System.getenv("GROQ_API_KEY");
+        Circle apiDot = new Circle(5);
+        apiDot.setFill(apiKey != null && !apiKey.isBlank() ? Color.web("#00ff88") : Color.web("#ff5555"));
+        Label apiLabel = new Label("API");
+        apiLabel.setTextFill(Color.web("#00f2ff"));
+        apiLabel.setFont(Font.font("monospace", 12));
+        HBox apiBox = new HBox(4, apiDot, apiLabel);
+        apiBox.setAlignment(Pos.CENTER);
+
+        bar.getChildren().addAll(coreId, clockLabel, emu, modelLabel, apiBox);
         return bar;
     }
 
@@ -251,7 +350,6 @@ public class NeuonFXApp extends Application {
         titleBox.setAlignment(Pos.CENTER);
         titleBox.setMouseTransparent(true);
 
-        // ── Thin progress bar, positioned below the title ──
         progressBar = new ProgressBar(0);
         progressBar.setPrefWidth(0);
         progressBar.setPrefHeight(3);
@@ -326,7 +424,6 @@ public class NeuonFXApp extends Application {
         );
         inputField.setOnAction(e -> sendPrompt());
 
-        // ── SEND button ──
         sendBtn = new Button("FIRE");
         String btnBase =
             "-fx-background-color: #00f2ff;" +
@@ -347,7 +444,6 @@ public class NeuonFXApp extends Application {
         sendBtn.setOnMouseExited(e -> sendBtn.setStyle(btnBase));
         sendBtn.setOnAction(e -> sendPrompt());
 
-        // ── MIC button ──
         micBtn = new Button("SPEAK");
         String micBase =
             "-fx-background-color: #00f2ff;" +
@@ -368,19 +464,107 @@ public class NeuonFXApp extends Application {
         micBtn.setOnMouseExited(e -> micBtn.setStyle(micBase));
         micBtn.setOnAction(e -> startVoiceRecording(micBtn));
 
-        HBox inputBox = new HBox(8, inputField, sendBtn, micBtn);
+        cancelBtn = new Button("CANCEL");
+        String cancelBase =
+            "-fx-background-color: transparent;" +
+            "-fx-text-fill: #ff5555;" +
+            "-fx-border-color: #ff5555;" +
+            "-fx-border-width: 1;" +
+            "-fx-border-radius: 6;" +
+            "-fx-background-radius: 6;" +
+            "-fx-padding: 10 14;" +
+            "-fx-font-family: 'Orbitron', sans-serif;" +
+            "-fx-cursor: hand;" +
+            "-fx-font-size: 11px;";
+        cancelBtn.setStyle(cancelBase);
+        cancelBtn.setOnMouseEntered(e -> cancelBtn.setStyle(
+            "-fx-background-color: #ff5555;" +
+            "-fx-text-fill: #000;" +
+            "-fx-font-weight: bold;" +
+            "-fx-border-radius: 6;" +
+            "-fx-background-radius: 6;" +
+            "-fx-padding: 10 14;" +
+            "-fx-font-family: 'Orbitron', sans-serif;" +
+            "-fx-cursor: hand;" +
+            "-fx-font-size: 11px;"
+        ));
+        cancelBtn.setOnMouseExited(e -> cancelBtn.setStyle(cancelBase));
+        cancelBtn.setOnAction(e -> cancelCurrentTask());
+        cancelBtn.setDisable(true);
+
+        clearBtn = new Button("CLEAR");
+        String clearBase =
+            "-fx-background-color: transparent;" +
+            "-fx-text-fill: #ffaa00;" +
+            "-fx-border-color: #ffaa00;" +
+            "-fx-border-width: 1;" +
+            "-fx-border-radius: 6;" +
+            "-fx-background-radius: 6;" +
+            "-fx-padding: 10 14;" +
+            "-fx-font-family: 'Orbitron', sans-serif;" +
+            "-fx-cursor: hand;" +
+            "-fx-font-size: 11px;";
+        clearBtn.setStyle(clearBase);
+        clearBtn.setOnMouseEntered(e -> clearBtn.setStyle(
+            "-fx-background-color: #ffaa00;" +
+            "-fx-text-fill: #000;" +
+            "-fx-font-weight: bold;" +
+            "-fx-border-radius: 6;" +
+            "-fx-background-radius: 6;" +
+            "-fx-padding: 10 14;" +
+            "-fx-font-family: 'Orbitron', sans-serif;" +
+            "-fx-cursor: hand;" +
+            "-fx-font-size: 11px;"
+        ));
+        clearBtn.setOnMouseExited(e -> clearBtn.setStyle(clearBase));
+        clearBtn.setOnAction(e -> clearConversation());
+
+        HBox inputBox = new HBox(8, inputField, sendBtn, micBtn, cancelBtn, clearBtn);
         HBox.setHgrow(inputField, Priority.ALWAYS);
         inputBox.setAlignment(Pos.CENTER);
         inputBox.setPadding(new Insets(8, 0, 0, 0));
         inputPanel.getChildren().add(inputBox);
 
-        bar.getChildren().addAll(histPanel, inputPanel);
+        VBox stdoutPanel = createPanel("STDOUT");
+        stdoutOutput = new TextArea();
+        stdoutOutput.setEditable(false);
+        stdoutOutput.setWrapText(true);
+        stdoutOutput.setPrefHeight(80);
+        stdoutOutput.setStyle(
+            "-fx-control-inner-background: black;" +
+            "-fx-text-fill: #00ff88;" +
+            "-fx-font-family: 'Consolas', monospace;" +
+            "-fx-font-size: 11px;"
+        );
+        stdoutPanel.getChildren().add(stdoutOutput);
+
+        VBox stderrPanel = createPanel("STDERR");
+        stderrOutput = new TextArea();
+        stderrOutput.setEditable(false);
+        stderrOutput.setWrapText(true);
+        stderrOutput.setPrefHeight(80);
+        stderrOutput.setStyle(
+            "-fx-control-inner-background: black;" +
+            "-fx-text-fill: #ff5555;" +
+            "-fx-font-family: 'Consolas', monospace;" +
+            "-fx-font-size: 11px;"
+        );
+        stderrPanel.getChildren().add(stderrOutput);
+
+        VBox outputPanels = new VBox(8, stdoutPanel, stderrPanel);
+        HBox.setHgrow(outputPanels, Priority.ALWAYS);
+
+        bar.getChildren().addAll(histPanel, inputPanel, outputPanels);
         HBox.setHgrow(histPanel, Priority.ALWAYS);
         HBox.setHgrow(inputPanel, Priority.ALWAYS);
         return bar;
     }
+
     private void startVoiceRecording(Button micBtn) {
-        // ── Visual feedback: mic button turns red ──
+        if (isListening || isProcessing) {
+            return;
+        }
+
         micBtn.setStyle(
             "-fx-background-color: #ff5555;" +
             "-fx-text-fill: white;" +
@@ -394,8 +578,6 @@ public class NeuonFXApp extends Application {
         );
         setListening(true);
 
-        // ── 1. PULSE: Grow and STAY expanded ──
-        // Animate from idle size to expanded, then hold
         voicePulseTimeline = new Timeline(
             new KeyFrame(Duration.ZERO,
                 new KeyValue(ring1.scaleXProperty(), 1.0, javafx.animation.Interpolator.EASE_OUT),
@@ -415,26 +597,23 @@ public class NeuonFXApp extends Application {
             )
            
         );
+        voicePulseTimeline.setAutoReverse(true);
+        voicePulseTimeline.setCycleCount(Timeline.INDEFINITE);
         voicePulseTimeline.play();
 
-        // ── 2. OUTER RING: Rotate faster + get thicker ──
-        // Stop the slow idle rotation
         if (ring1Timeline != null) ring1Timeline.stop();
 
-        // Thicken the outer ring
-        ring1.setStrokeWidth(4); // was 1, now 4px thick
+        ring1.setStrokeWidth(4);
 
-        // Fast continuous rotation
         voiceRotateTimeline = new Timeline(
             new KeyFrame(Duration.ZERO,
                 new KeyValue(ring1.rotateProperty(), ring1.getRotate(), javafx.animation.Interpolator.LINEAR)),
-            new KeyFrame(Duration.seconds(2), // 2 seconds per full rotation = fast
+            new KeyFrame(Duration.seconds(2),
                 new KeyValue(ring1.rotateProperty(), ring1.getRotate() + 360, javafx.animation.Interpolator.LINEAR))
         );
         voiceRotateTimeline.setCycleCount(Timeline.INDEFINITE);
         voiceRotateTimeline.play();
 
-        // Fast rotation for ring2 (counterclockwise)
         voiceRotateTimeline2 = new Timeline(
             new KeyFrame(Duration.ZERO,
                 new KeyValue(ring2.rotateProperty(), ring2.getRotate(), javafx.animation.Interpolator.LINEAR)),
@@ -444,7 +623,6 @@ public class NeuonFXApp extends Application {
         voiceRotateTimeline2.setCycleCount(Timeline.INDEFINITE);
         voiceRotateTimeline2.play();
 
-        // Fast rotation for ring3 (clockwise, opposite to ring2)
         voiceRotateTimeline3 = new Timeline(
             new KeyFrame(Duration.ZERO,
                 new KeyValue(ring3.rotateProperty(), ring3.getRotate(), javafx.animation.Interpolator.LINEAR)),
@@ -454,10 +632,8 @@ public class NeuonFXApp extends Application {
         voiceRotateTimeline3.setCycleCount(Timeline.INDEFINITE);
         voiceRotateTimeline3.play();
 
-        // ── 3. Optional: Cyan-to-red color shift on outer ring ──
-        ring1.setStroke(Color.web("#00f2ff")); // Red while recording
+        ring1.setStroke(Color.web("#00f2ff"));
 
-        // ── Start voice recording in background ──
         Task<String> voiceTask = new Task<>() {
             @Override
 
@@ -498,7 +674,6 @@ public class NeuonFXApp extends Application {
     }
 
     private void stopVoiceAnimation(Button micBtn) {
-        // ── Smooth return to idle ──
         Timeline returnToIdle = new Timeline(
             new KeyFrame(Duration.ZERO,
                 new KeyValue(ring1.scaleXProperty(), ring1.getScaleX()),
@@ -511,18 +686,17 @@ public class NeuonFXApp extends Application {
                 new KeyValue(ring1.rotateProperty(), ring1.getRotate())
             ),
             new KeyFrame(Duration.millis(500),
-                new KeyValue(ring1.scaleXProperty(), 0.5, javafx.animation.Interpolator.EASE_IN),
-                new KeyValue(ring1.scaleYProperty(), 0.5, javafx.animation.Interpolator.EASE_IN),
+                new KeyValue(ring1.scaleXProperty(), 1.0, javafx.animation.Interpolator.EASE_IN),
+                new KeyValue(ring1.scaleYProperty(), 1.0, javafx.animation.Interpolator.EASE_IN),
                 new KeyValue(ring2.scaleXProperty(), 1.0, javafx.animation.Interpolator.EASE_IN),
                 new KeyValue(ring2.scaleYProperty(), 1.0, javafx.animation.Interpolator.EASE_IN),
                 new KeyValue(ring3.scaleXProperty(), 1.0, javafx.animation.Interpolator.EASE_IN),
                 new KeyValue(ring3.scaleYProperty(), 1.0, javafx.animation.Interpolator.EASE_IN),
                 new KeyValue(ring1.strokeWidthProperty(), originalRing1StrokeWidth, javafx.animation.Interpolator.EASE_IN),
-                new KeyValue(ring1.rotateProperty(), ring1.getRotate() + 90, javafx.animation.Interpolator.EASE_IN) // coast to stop
+                new KeyValue(ring1.rotateProperty(), ring1.getRotate() + 90, javafx.animation.Interpolator.EASE_IN)
             )
         );
         returnToIdle.setOnFinished(e -> {
-            // Restore idle rotation
             if (voiceRotateTimeline != null) {
                 voiceRotateTimeline.stop();
                 voiceRotateTimeline = null;
@@ -539,10 +713,9 @@ public class NeuonFXApp extends Application {
                 voicePulseTimeline.stop();
                 voicePulseTimeline = null;
             }
-            ring1.setStroke(Color.web("#00f2ff")); // Back to cyan
+            ring1.setStroke(Color.web("#00f2ff"));
             ring1.setStrokeWidth(originalRing1StrokeWidth);
 
-            // Restart slow idle rotation
             ring1Timeline = new Timeline(
                 new KeyFrame(Duration.ZERO,
                     new KeyValue(ring1.rotateProperty(), ring1.getRotate(), javafx.animation.Interpolator.LINEAR)),
@@ -554,7 +727,6 @@ public class NeuonFXApp extends Application {
         });
         returnToIdle.play();
 
-        // Reset mic button
         String micBase =
             "-fx-background-color: transparent;" +
             "-fx-text-fill: #00f2ff;" +
@@ -572,13 +744,11 @@ public class NeuonFXApp extends Application {
     private void startHardwareMonitoring() {
         hwScheduler = Executors.newSingleThreadScheduledExecutor();
         hwScheduler.scheduleAtFixedRate(() -> {
-            // Read from /proc (background thread — file I/O is safe here)
             String cpu  = hardwareMonitor.getCpu();
             String ram  = hardwareMonitor.getRam();
             String disk = hardwareMonitor.getDisk();
             String net  = hardwareMonitor.getNet();
 
-            // Push to UI (JavaFX thread only!)
             javafx.application.Platform.runLater(() -> {
                 hwMonitor.setText(String.format(
                     "CPU  : %s\nRAM  : %s\nDISK : %s\nNET  : %s",
@@ -596,30 +766,81 @@ public class NeuonFXApp extends Application {
         inputField.clear();
 
         setProcessing(true);
+        setStatus("THINKING");
 
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() {
                 try {
+                    setStatus("THINKING");
+                    updateTaskInfo("Processing request", "", "", "");
                     String response = orchesterAgent.getLLMResponse(prompt);
+                    if (isCancelled()) {
+                        return null;
+                    }
                     fxInterface.sendOutput(response);
                     voiceHandler.speak(response);
+                    setStatus("IDLE");
+                    updateTaskInfo("--", "--", "--", "--");
+                    refreshWorkspaceFileList();
                 } catch (Exception e) {
                     fxInterface.sendOutput("[ERROR] " + e.getMessage());
-                    e.printStackTrace();
+                    setStatus("ERROR");
                 }
                 return null;
             }
-            @Override protected void succeeded() { setProcessing(false); }
+            @Override protected void succeeded() { finishProcessing(); }
+            @Override protected void cancelled() {
+                finishProcessing();
+                setStatus("IDLE");
+            }
             @Override protected void failed() {
-                setProcessing(false);
+                finishProcessing();
                 fxInterface.sendOutput("[ERROR] " + getException().getMessage());
+                setStatus("ERROR");
             }
         };
 
+        currentTask = task;
         Thread t = new Thread(task);
         t.setDaemon(true);
+        currentTaskThread = t;
         t.start();
+    }
+
+    private void finishProcessing() {
+        setProcessing(false);
+        setStatus("IDLE");
+        currentTask = null;
+        currentTaskThread = null;
+    }
+
+    private void cancelCurrentTask() {
+        if (currentTask != null && currentTask.isRunning()) {
+            currentTask.cancel(true);
+            if (currentTaskThread != null) {
+                currentTaskThread.interrupt();
+            }
+            currentTask = null;
+            finishProcessing();
+            fxInterface.sendOutput("[SYSTEM] Task cancelled by user.");
+        }
+    }
+
+    private void clearConversation() {
+        clearAgentMemory();
+        outputArea.clear();
+        historyArea.clear();
+        stdoutOutput.clear();
+        stderrOutput.clear();
+        toolCallDisplay.clear();
+        fxInterface.sendOutput("[SYSTEM] Conversation cleared.");
+    }
+
+    private void clearAgentMemory() {
+        if (orchesterAgent != null) {
+            orchesterAgent.clearShortMemory();
+        }
     }
 
     private void setProcessing(boolean active) {
@@ -630,8 +851,10 @@ public class NeuonFXApp extends Application {
             progressBar.setVisible(true);
             progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
             pulseCore();
+            cancelBtn.setDisable(false);
         } else {
             progressBar.setVisible(false);
+            cancelBtn.setDisable(true);
             if (!isListening) {
                 statusLabel.setText("SYSTEM IDLE");
             }
@@ -652,6 +875,54 @@ public class NeuonFXApp extends Application {
         boolean disabled = isListening || isProcessing;
         if (micBtn != null) micBtn.setDisable(disabled);
         if (sendBtn != null) sendBtn.setDisable(disabled);
+    }
+
+    private void setStatus(String status) {
+        javafx.application.Platform.runLater(() -> {
+            if (statusIndicator != null) {
+                statusIndicator.setText(status);
+                switch (status) {
+                    case "IDLE" -> statusIndicator.setTextFill(Color.web("#00f2ff"));
+                    case "THINKING" -> statusIndicator.setTextFill(Color.web("#ffaa00"));
+                    case "RUNNING TOOL" -> statusIndicator.setTextFill(Color.web("#ffaa00"));
+                    case "WAITING APPROVAL" -> statusIndicator.setTextFill(Color.web("#ff5555"));
+                    case "ERROR" -> statusIndicator.setTextFill(Color.web("#ff5555"));
+                    default -> statusIndicator.setTextFill(Color.web("#00f2ff"));
+                }
+            }
+        });
+    }
+
+    private void updateTaskInfo(String task, String project, String step, String result) {
+        javafx.application.Platform.runLater(() -> {
+            if (taskLabel != null) taskLabel.setText("Task: " + task);
+            if (projectLabel != null) projectLabel.setText("Project: " + project);
+            if (stepLabel != null) stepLabel.setText("Step: " + step);
+            if (resultLabel != null) resultLabel.setText("Result: " + result);
+        });
+    }
+
+    private void refreshWorkspaceFileList() {
+        try {
+            String listing = com.neuon.tools.WorkspaceManager.listFiles(".");
+            javafx.application.Platform.runLater(() -> {
+                if (workspaceFileList != null) {
+                    workspaceFileList.setText(listing);
+                }
+            });
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String getModelName() {
+        String model = System.getenv("LLM_MODEL");
+        return model != null && !model.isBlank() ? model : "openai/gpt-oss-120b";
+    }
+
+    private String apiKeyStatusText() {
+        String key = System.getenv("GROQ_API_KEY");
+        if (key == null || key.isBlank()) return "API Key: NOT SET";
+        return "API Key: CONFIGURED";
     }
 
     private void pulseCore() {
@@ -716,11 +987,21 @@ public class NeuonFXApp extends Application {
     }
 
     private void stopAnimations() {
-        if (hwScheduler != null) hwScheduler.shutdown();
+        if (currentTask != null && currentTask.isRunning()) {
+            currentTask.cancel(true);
+        }
+        if (currentTaskThread != null) {
+            currentTaskThread.interrupt();
+        }
+        if (hwScheduler != null) hwScheduler.shutdownNow();
         if (clockTimeline != null) clockTimeline.stop();
         if (ring1Timeline != null) ring1Timeline.stop();
         if (ring2Timeline != null) ring2Timeline.stop();
         if (ring3Timeline != null) ring3Timeline.stop();
+        if (voicePulseTimeline != null) voicePulseTimeline.stop();
+        if (voiceRotateTimeline != null) voiceRotateTimeline.stop();
+        if (voiceRotateTimeline2 != null) voiceRotateTimeline2.stop();
+        if (voiceRotateTimeline3 != null) voiceRotateTimeline3.stop();
     }
 
     public static void main(String[] args) {

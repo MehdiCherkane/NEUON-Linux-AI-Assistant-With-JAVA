@@ -25,6 +25,9 @@ import java.util.concurrent.CountDownLatch;
 public class FXInterface extends Interface {
 
     private static TextArea outputArea;
+    private TextArea toolCallDisplay;
+    private TextArea stdoutOutput;
+    private TextArea stderrOutput;
     private Stage interactiveDialog;
     private TextField interactiveInput;
     private Runner activeRunner;   // used to send input/kill
@@ -249,6 +252,40 @@ public class FXInterface extends Interface {
             activeRunner = null;
         });
     }
+
+    @Override
+    public void setToolCall(String text) {
+        if (toolCallDisplay == null) return;
+        if (Platform.isFxApplicationThread()) {
+            toolCallDisplay.setText(text);
+        } else {
+            Platform.runLater(() -> toolCallDisplay.setText(text));
+        }
+    }
+
+    @Override
+    public void appendStdout(String text) {
+        if (stdoutOutput == null) return;
+        if (Platform.isFxApplicationThread()) {
+            stdoutOutput.appendText(text + "\n");
+        } else {
+            Platform.runLater(() -> stdoutOutput.appendText(text + "\n"));
+        }
+    }
+
+    @Override
+    public void appendStderr(String text) {
+        if (stderrOutput == null) return;
+        if (Platform.isFxApplicationThread()) {
+            stderrOutput.appendText(text + "\n");
+        } else {
+            Platform.runLater(() -> stderrOutput.appendText(text + "\n"));
+        }
+    }
+
+    public void setToolCallTextArea(TextArea ta) { this.toolCallDisplay = ta; }
+    public void setStdoutTextArea(TextArea ta) { this.stdoutOutput = ta; }
+    public void setStderrTextArea(TextArea ta) { this.stderrOutput = ta; }
 
     @Override
     public String getPrompt() {

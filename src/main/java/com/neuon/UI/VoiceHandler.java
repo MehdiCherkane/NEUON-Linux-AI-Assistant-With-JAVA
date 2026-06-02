@@ -101,7 +101,6 @@ public class VoiceHandler {
 
         } catch (Exception e) {
             System.err.println("Error during recording/transcription: " + e.getMessage());
-            e.printStackTrace();
             return null;
         } finally {
             if (mic != null) {
@@ -330,7 +329,6 @@ public class VoiceHandler {
 
         } catch (Exception e) {
             System.err.println("TTS failed: " + e.getMessage());
-            e.printStackTrace();
             return false;
         }
     }

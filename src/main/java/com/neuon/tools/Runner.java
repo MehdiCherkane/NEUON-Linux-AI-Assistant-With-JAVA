@@ -35,7 +35,7 @@ public class Runner {
             int exitCode = process.waitFor();
             return new ProcessResult(exitCode, stdout, stderr);
         } catch (Exception e) {
-            e.printStackTrace();
+            System.err.println("[Runner.execute] " + e.getMessage());
             return new ProcessResult(-1, "", e.getMessage());
         }
     }
@@ -106,21 +106,23 @@ public class Runner {
     }
 
     public void sendInput(String input) {
-        OutputStream out = activeStdin;
-        if (out != null) {
-            try {
-                out.write((input + "\n").getBytes());
-                out.flush();
-            } catch (IOException e) {
-                e.printStackTrace();
+        synchronized (this) {
+            if (activeStdin != null) {
+                try {
+                    activeStdin.write((input + "\n").getBytes());
+                    activeStdin.flush();
+                } catch (IOException e) {
+                    System.err.println("[Runner.sendInput] " + e.getMessage());
+                }
             }
         }
     }
 
     public void killActiveProcess() {
-        Process p = activeProcess;
-        if (p != null && p.isAlive()) {
-            p.destroyForcibly();
+        synchronized (this) {
+            if (activeProcess != null && activeProcess.isAlive()) {
+                activeProcess.destroyForcibly();
+            }
         }
     }
 

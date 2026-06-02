@@ -44,8 +44,10 @@ public class ToolOptimzerModel {
         JsonObject fullMessage = RequestBuilder.build(msg.build(), null, MODEL);
         
         ResponseParser response;
+        LLMResult llmResult = optimizer.ask(fullMessage);
+        if (!llmResult.ok()) return null;
         try{
-            response = new ResponseParser().parse(optimizer.ask(fullMessage));
+            response = new ResponseParser().parse(llmResult.body());
         }
         catch(Exception e){
             return null;

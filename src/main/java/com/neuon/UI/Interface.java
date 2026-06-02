@@ -42,4 +42,16 @@ public class Interface {
         System.out.println("Interactive mode started. ");
     }
 
+    public void appendStdout(String text) {
+        System.out.println(text);
+    }
+
+    public void appendStderr(String text) {
+        System.err.println(text);
+    }
+
+    public void setToolCall(String text) {
+        System.out.println("[TOOL] " + text);
+    }
+
 }

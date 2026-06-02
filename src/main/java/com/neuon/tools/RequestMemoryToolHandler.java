@@ -15,7 +15,6 @@ public class RequestMemoryToolHandler implements ToolHandler {
             String requestedMemories = memoriesEl.getAsString();
             return memory.requestMemories(requestedMemories);
         } catch (Exception e) {
-            e.printStackTrace();
             return "[ERROR] " + e.getMessage();
         }
     }

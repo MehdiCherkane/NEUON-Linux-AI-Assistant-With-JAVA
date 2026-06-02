@@ -94,25 +94,32 @@ public class ToolWareHouse {
             .addParameter("file_content", "string", true)
         );
 
+        // 11 - list files
+        registerTool("list_files", new ToolDefinition("list_files",
+            "List all files and directories inside a given path. " +
+            "Use this to inspect the workspace or project contents before making changes. " +
+            "Provide a path relative to the workspace (e.g. '.' for root, 'my_project' for a project).")
+            .addParameter("path", "string", true)
+        );
+
+        // 12 - edit file (full content replacement)
+        registerTool("edit_file", new ToolDefinition("edit_file",
+            "Replace the full content of an existing file or create a new file. " +
+            "Use this to modify source code files, configuration files, or any text file. " +
+            "Provide a path relative to the workspace and the new file content. " +
+            "The tool rejects paths outside the workspace.")
+            .addParameter("file_path", "string", true)
+            .addParameter("file_content", "string", true)
+        );
+
         optimizer = new ToolOptimzerModel(allTools.keySet());
 
     }
 
-    // for the optimzer.
+    // disabled: optimizer is skipped for small tool sets (< 15 tools)
+    // returns all tools directly without LLM-based optimization
     public ToolRegistry getNeededTools(String userPrompt){
-
-        ToolRegistry toolRegistry = new ToolRegistry();
-        ArrayList<String> neededTools = optimizer.getNeededTools(userPrompt);
-        if (neededTools == null) {
-            return getAllTools();
-        }
-        for (String toolName : neededTools) {
-            ToolDefinition tool = allTools.get(toolName);
-            if (tool != null) {
-                toolRegistry.register(tool);
-            }
-        }
-        return toolRegistry;
+        return getAllTools();
     }
 
     // to expose the needed tools for difrent agents now (orchester, codeAgent).

@@ -8,7 +8,11 @@ public class ShellTool implements ToolHandler {
 
         private SafetyCheck safetyCheck = new SafetyCheck();
         private Runner runner = new Runner(); 
-        private Interface userInterface = new FXInterface();
+        private Interface userInterface;
+
+        public ShellTool(Interface userInterface) {
+            this.userInterface = userInterface;
+        }
 
         @Override
         public String execute(JsonObject parameters) {

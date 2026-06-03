@@ -25,9 +25,12 @@ public class HardwareMonitor {
     
     public String getCpu() {
         try {
-            String[] parts = Files.lines(Paths.get("/proc/stat"))
+            String line = Files.lines(Paths.get("/proc/stat"))
                 .filter(l -> l.startsWith("cpu "))
-                .findFirst().get().trim().split("\\s+");
+                .findFirst().orElse("");
+            if (line.isBlank()) return "?%";
+            String[] parts = line.trim().split("\\s+");
+            if (parts.length < 6) return "?%";
             
             long user = Long.parseLong(parts[1]) + Long.parseLong(parts[2]);
             long sys  = Long.parseLong(parts[3]);

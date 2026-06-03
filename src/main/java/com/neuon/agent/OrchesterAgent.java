@@ -18,21 +18,21 @@ public class OrchesterAgent {
     private CodeAgent codeAgent;
     private JsonArray orchestorTools;
 
-    public OrchesterAgent() {
+    public OrchesterAgent(FXInterface fxInterface) {
         this.memory = new Memory();
         this.sysPrompt = new PromptOrchester(memory);
         this.toolDispatcher = new ToolDispatcher();
         this.toolRunner = new ToolRunner(toolDispatcher);
-        this.codeAgent = new CodeAgent(toolRunner);
-        this.agentLoop = new AgentLoop(toolRunner, new FXInterface());
+        this.codeAgent = new CodeAgent(toolRunner, fxInterface);
+        this.agentLoop = new AgentLoop(toolRunner, fxInterface);
 
         toolDispatcher
-            .register("run_shell", new ShellTool())
+            .register("run_shell", new ShellTool(fxInterface))
             .register("invoke_code_agent", new CodeToolHandler(codeAgent))
-            .register("update_long_term_memory", new LongMemoryToolHandler())
+            .register("update_long_term_memory", new LongMemoryToolHandler(memory))
             .register("find_on_youtube", new YouTubeToolHandler())
-            .register("exit_Neuon", new ExitToolHandler())
-            .register("request_memories", new RequestMemoryToolHandler())
+            .register("exit_Neuon", new ExitToolHandler(memory))
+            .register("request_memories", new RequestMemoryToolHandler(memory))
             .register("read_file", new ReadFileToolHandler())
             .register("send_email", new EmailTool())
             .register("make_project_directory", new MakeDirectoryTool())

@@ -5,7 +5,12 @@ import com.neuon.core.*;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonElement;
 public class LongMemoryToolHandler implements ToolHandler {
-    private Memory memory = new Memory();
+    private Memory memory;
+
+    public LongMemoryToolHandler(Memory memory) {
+        this.memory = memory;
+    }
+
     @Override
     public String execute(JsonObject parameters) {
         try {

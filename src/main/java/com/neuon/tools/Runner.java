@@ -48,7 +48,9 @@ public class Runner {
         new Thread(() -> {
             try {
                 // Use PTY instead of ProcessBuilder
-                String[] cmdarray = { "bash", "-c", command };
+                // PTY does not separate stdout/stderr — merge stderr into stdout
+                // so all output goes through the PTY stream to onOutput()
+                String[] cmdarray = { "bash", "-c", command + " 2>&1" };
                 Process process = new PtyProcessBuilder(cmdarray)
                                         .setEnvironment(System.getenv())
                                         .setDirectory(null)
@@ -65,7 +67,7 @@ public class Runner {
                 }
 
     
-                // read stdout, stderr, waitFor, etc.
+                // read all output through the PTY stream (stdout + stderr merged)
                 Thread outThread = new Thread(() -> {
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                         String line;
@@ -78,19 +80,6 @@ public class Runner {
                 });
                 outThread.setDaemon(true);
                 outThread.start();
-
-                Thread errThread = new Thread(() -> {
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getErrorStream()))) {
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            handler.onError(line);
-                        }
-                    } catch (IOException ignored) {
-                        // Stream closed when process ends
-                    }
-                });
-                errThread.setDaemon(true);
-                errThread.start();
 
                 int exitCode = process.waitFor();
                 handler.onExit(exitCode);

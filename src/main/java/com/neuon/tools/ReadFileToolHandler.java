@@ -14,16 +14,10 @@ public class ReadFileToolHandler implements ToolHandler {
             return "Error: empty file_path";
         }
 
-        boolean isAbsolute = filePath.startsWith("/");
-        if (isAbsolute) {
-            try {
-                String content = WorkspaceManager.readFile(filePath);
-                return content;
-            } catch (Exception e) {
-                return "Error: " + e.getMessage();
-            }
-        } else {
+        try {
             return WorkspaceManager.readFile(filePath);
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
         }
     }
 }

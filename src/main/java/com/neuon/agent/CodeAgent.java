@@ -16,11 +16,11 @@ public class CodeAgent {
     private ToolRunner toolRunner;
     private final JsonArray codeAgentTools;
 
-    public CodeAgent(ToolRunner toolRunner) {
+    public CodeAgent(ToolRunner toolRunner, FXInterface fxInterface) {
         this.toolRunner = toolRunner;
         this.memory = new Memory();
         this.sysPrompt = new PromptCodeAgent();
-        this.agentLoop = new AgentLoop(toolRunner, new FXInterface());
+        this.agentLoop = new AgentLoop(toolRunner, fxInterface);
 
         ArrayList<String> toolNames = new ArrayList<>();
         toolNames.add("make_project_directory");

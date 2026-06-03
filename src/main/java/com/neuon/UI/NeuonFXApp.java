@@ -88,7 +88,7 @@ public class NeuonFXApp extends Application {
 
         fxInterface = new FXInterface();
 
-        orchesterAgent = new OrchesterAgent();
+        orchesterAgent = new OrchesterAgent(fxInterface);
 
         Scene scene = new Scene(mainRoot, 1400, 900);
         scene.setFill(Color.web("#020b10"));

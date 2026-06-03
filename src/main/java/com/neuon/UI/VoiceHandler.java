@@ -7,6 +7,7 @@ import javax.sound.sampled.*;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 
 public class VoiceHandler {
 
@@ -314,17 +315,28 @@ public class VoiceHandler {
         }
 
         try {
-            // Step 1: Request TTS from eidosSpeech (returns MP3)
-            byte[] mp3Bytes = requestEidosTTS(text);
-            if (mp3Bytes == null || mp3Bytes.length == 0) {
-                System.err.println("TTS returned empty audio.");
-                return false;
-            }
+            PipedInputStream pipeIn = new PipedInputStream(4096);
+            PipedOutputStream pipeOut = new PipedOutputStream(pipeIn);
 
-            System.out.println("Received " + mp3Bytes.length + " bytes from eidosSpeech");
+            // Start SSE reader thread — writes decoded chunks to pipe
+            Thread ttsThread = new Thread(() -> {
+                try {
+                    requestEidosTTSStream(text, pipeOut);
+                } catch (Exception e) {
+                    System.err.println("TTS stream error: " + e.getMessage());
+                } finally {
+                    try { pipeOut.close(); } catch (IOException ignored) {}
+                }
+            });
+            ttsThread.setDaemon(true);
+            ttsThread.start();
 
-            // step 2: save to temps and play using javazoom
-            playMp3Stream(mp3Bytes);
+            // Play audio from pipe as chunks arrive (true streaming)
+            Player player = new Player(pipeIn);
+            player.play();
+            player.close();
+
+            ttsThread.join(5000);
             return true;
 
         } catch (Exception e) {
@@ -333,11 +345,10 @@ public class VoiceHandler {
         }
     }
 
-    private byte[] requestEidosTTS(String text) throws Exception {
+    private void requestEidosTTSStream(String text, OutputStream audioSink) throws Exception {
         URL url = new URL(EIDOS_ENDPOINT);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
-        //eidosSpeech uses X-API-Key header, NOT Authorization: Bearer
         conn.setRequestProperty("X-API-Key", EIDOS_API_KEY);
         conn.setRequestProperty("Content-Type", "application/json");
         conn.setRequestProperty("Accept", "audio/mpeg");
@@ -345,12 +356,11 @@ public class VoiceHandler {
         conn.setReadTimeout(READ_TIMEOUT_MS);
         conn.setDoOutput(true);
 
-        // eidosSpeech request body
         String jsonBody = "{" +
             "\"text\": \"" + escapeJson(text) + "\"," +
             "\"voice\": \"" + EIDOS_VOICE + "\"," +
             "\"format\": \"mp3\"," +
-            "\"stream_format\": \"sse\"" + 
+            "\"stream_format\": \"sse\"" +
         "}";
 
         try (OutputStream os = conn.getOutputStream()) {
@@ -358,40 +368,75 @@ public class VoiceHandler {
         }
 
         int status = conn.getResponseCode();
-
-        // Check for errors first
         if (status >= 400) {
             String errorBody = readResponse(conn);
             throw new IOException("eidosSpeech API error (" + status + "): " + errorBody);
         }
 
-        InputStream is = conn.getInputStream();
-        if (is == null) {
+        InputStream rawIn = conn.getInputStream();
+        if (rawIn == null) {
             throw new IOException("No response stream, status: " + status);
         }
 
-        // Read all audio bytes (complete MP3 file from eidosSpeech)
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        int n;
-        while ((n = is.read(buffer)) != -1) {
-            baos.write(buffer, 0, n);
+        // Peek at first bytes to detect SSE ("data:") vs raw MP3
+        PushbackInputStream pushback = new PushbackInputStream(rawIn, 64);
+        byte[] header = new byte[6];
+        int headerLen = pushback.read(header);
+        if (headerLen > 0) {
+            pushback.unread(header, 0, headerLen);
         }
-        is.close();
-        conn.disconnect();
 
-        byte[] result = baos.toByteArray();
-        baos.close();
-        return result;
+        String start = new String(header, 0, Math.min(headerLen, 6), StandardCharsets.UTF_8);
+        boolean isSse = start.startsWith("data:");
+
+        try (BufferedOutputStream bos = new BufferedOutputStream(audioSink)) {
+            if (isSse) {
+                // Parse SSE event stream
+                BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(pushback, StandardCharsets.UTF_8));
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("data:")) {
+                        String data = line.substring(5).trim();
+                        if (data.isEmpty() || data.equals("[DONE]") || data.equals("[done]")) {
+                            continue;
+                        }
+                        byte[] chunk = tryParseJsonAudio(data);
+                        if (chunk != null) {
+                            bos.write(chunk);
+                            bos.flush();
+                            continue;
+                        }
+                        try {
+                            chunk = Base64.getDecoder().decode(data);
+                            bos.write(chunk);
+                            bos.flush();
+                        } catch (IllegalArgumentException ignored) {
+                        }
+                    }
+                }
+            } else {
+                // Raw MP3 (or other binary) — stream directly to player
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = pushback.read(buf)) != -1) {
+                    bos.write(buf, 0, n);
+                    bos.flush();
+                }
+            }
+        }
+        conn.disconnect();
     }
 
-    // no player needed
-    private void playMp3Stream(byte[] mp3Bytes) throws Exception {
-        // Decode and play MP3 directly in Java — no temp file, no external player
-        ByteArrayInputStream bais = new ByteArrayInputStream(mp3Bytes);
-        Player player = new Player(bais);
-        player.play();  // Blocks until audio finishes
-        player.close();
+    private byte[] tryParseJsonAudio(String data) {
+        try {
+            JsonObject json = gson.fromJson(data, JsonObject.class);
+            if (json != null && json.has("audio") && !json.get("audio").isJsonNull()) {
+                String b64 = json.get("audio").getAsString();
+                return Base64.getDecoder().decode(b64);
+            }
+        } catch (Exception ignored) {}
+        return null;
     }
 
     

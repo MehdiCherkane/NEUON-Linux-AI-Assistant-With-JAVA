@@ -4,7 +4,11 @@ import com.neuon.core.*;
 import com.google.gson.JsonObject;
 
 public class ExitToolHandler implements ToolHandler{
-    private Memory memory = new Memory();
+    private Memory memory;
+
+    public ExitToolHandler(Memory memory) {
+        this.memory = memory;
+    }
 
     @Override 
     public String execute(JsonObject parameters){
